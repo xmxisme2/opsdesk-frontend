@@ -1,0 +1,12 @@
+.page-panel {
+  border: 1px solid var(--ops-border-color);
+  border-radius: 8px;
+  background: var(--ops-bg-panel);
+  box-shadow: var(--ops-shadow-panel);
+  padding: 20px;
+}
+
+.page-stack {
+  display: grid;
+  gap: 16px;
+}

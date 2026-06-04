@@ -1,0 +1,176 @@
+import type { RouteRecordRaw } from 'vue-router'
+
+export const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/auth/LoginView.vue'),
+    meta: { title: '登录', requiresAuth: false, hiddenInMenu: true },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/auth/RegisterView.vue'),
+    meta: { title: '注册', requiresAuth: false, hiddenInMenu: true },
+  },
+  {
+    path: '/',
+    component: () => import('@/layouts/MainLayout.vue'),
+    redirect: '/workbench',
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: 'workbench',
+        name: 'workbench',
+        component: () => import('@/views/workbench/WorkbenchView.vue'),
+        meta: { title: '工作台', requiresAuth: true },
+      },
+      {
+        path: 'tickets',
+        name: 'tickets',
+        component: () => import('@/views/tickets/TicketListView.vue'),
+        meta: { title: '工单列表', requiresAuth: true, keepAlive: true },
+      },
+      {
+        path: 'tickets/create',
+        name: 'ticket-create',
+        component: () => import('@/views/tickets/TicketCreateView.vue'),
+        meta: { title: '创建工单', requiresAuth: true, hiddenInMenu: true, activeMenu: '/tickets' },
+      },
+      {
+        path: 'tickets/:id',
+        name: 'ticket-detail',
+        component: () => import('@/views/tickets/TicketDetailView.vue'),
+        meta: { title: '工单详情', requiresAuth: true, hiddenInMenu: true, activeMenu: '/tickets' },
+      },
+      {
+        path: 'my-tickets',
+        name: 'my-tickets',
+        component: () => import('@/views/tickets/MyTicketsView.vue'),
+        meta: { title: '我的工单', requiresAuth: true, keepAlive: true },
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/views/notifications/NotificationCenterView.vue'),
+        meta: { title: '通知中心', requiresAuth: true, keepAlive: true },
+      },
+      {
+        path: 'knowledge',
+        name: 'knowledge',
+        component: () => import('@/views/knowledge/KnowledgeListView.vue'),
+        meta: { title: '知识库', requiresAuth: true, keepAlive: true },
+      },
+      {
+        path: 'knowledge/:id',
+        name: 'knowledge-detail',
+        component: () => import('@/views/knowledge/KnowledgeDetailView.vue'),
+        meta: { title: '知识库详情', requiresAuth: true, hiddenInMenu: true, activeMenu: '/knowledge' },
+      },
+      {
+        path: 'ai',
+        name: 'ai',
+        component: () => import('@/views/ai/AiAssistantView.vue'),
+        meta: { title: 'AI 助手', requiresAuth: true, feature: 'ai' },
+      },
+      {
+        path: 'dashboard',
+        name: 'dashboard',
+        component: () => import('@/views/dashboard/DashboardView.vue'),
+        meta: { title: '数据看板', requiresAuth: true, roles: ['MANAGER', 'ADMIN'] },
+      },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('@/views/profile/ProfileView.vue'),
+        meta: { title: '个人中心', requiresAuth: true, hiddenInMenu: true },
+      },
+      {
+        path: 'system',
+        component: () => import('@/layouts/SystemLayout.vue'),
+        redirect: '/system/users',
+        meta: { title: '系统管理', requiresAuth: true, roles: ['ADMIN'] },
+        children: [
+          {
+            path: 'users',
+            name: 'system-users',
+            component: () => import('@/views/system/users/UserManagementView.vue'),
+            meta: { title: '用户管理', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'roles',
+            name: 'system-roles',
+            component: () => import('@/views/system/roles/RolePermissionView.vue'),
+            meta: { title: '角色权限', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'organization',
+            name: 'system-organization',
+            component: () => import('@/views/system/organization/OrganizationView.vue'),
+            meta: { title: '部门与团队', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'ticket-categories',
+            name: 'system-ticket-categories',
+            component: () => import('@/views/system/ticket-categories/TicketCategoryView.vue'),
+            meta: { title: '工单分类与优先级', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'audit-logs',
+            name: 'system-audit-logs',
+            component: () => import('@/views/system/audit/AuditLogView.vue'),
+            meta: { title: '操作日志', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'config',
+            name: 'system-config',
+            component: () => import('@/views/system/config/SystemConfigView.vue'),
+            meta: { title: '系统配置', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'config/sla-rules',
+            name: 'system-sla-rules',
+            component: () => import('@/views/system/config/SlaRulesPanel.vue'),
+            meta: { title: 'SLA 规则', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
+          },
+          {
+            path: 'config/upload-policy',
+            name: 'system-upload-policy',
+            component: () => import('@/views/system/config/UploadPolicyPanel.vue'),
+            meta: { title: '上传策略', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
+          },
+          {
+            path: 'config/notification-templates',
+            name: 'system-notification-templates',
+            component: () => import('@/views/system/config/NotificationTemplateView.vue'),
+            meta: { title: '通知模板', requiresAuth: true, roles: ['ADMIN'] },
+          },
+          {
+            path: 'config/ai-settings',
+            name: 'system-config-ai-settings',
+            component: () => import('@/views/system/config/AiSettingsPanel.vue'),
+            meta: { title: 'AI 开关', requiresAuth: true, roles: ['ADMIN'], feature: 'ai', activeMenu: '/system/config' },
+          },
+          {
+            path: 'ai-settings',
+            name: 'system-ai-settings',
+            component: () => import('@/views/system/ai/AiCallLogView.vue'),
+            meta: { title: 'AI 调用日志与开关', requiresAuth: true, roles: ['ADMIN'], feature: 'ai' },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    path: '/403',
+    name: 'forbidden',
+    component: () => import('@/views/ForbiddenView.vue'),
+    meta: { title: '无权限', hiddenInMenu: true },
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('@/views/NotFoundView.vue'),
+    meta: { title: '页面不存在', hiddenInMenu: true },
+  },
+]

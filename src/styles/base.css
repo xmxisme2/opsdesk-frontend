@@ -1,0 +1,34 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--ops-text-primary);
+  background: var(--ops-bg-page);
+  font-family:
+    Inter,
+    "Microsoft YaHei",
+    "PingFang SC",
+    Arial,
+    sans-serif;
+  letter-spacing: 0;
+}
+
+a {
+  color: var(--ops-primary-color);
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  letter-spacing: 0;
+}

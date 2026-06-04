@@ -1,0 +1,10 @@
+:root {
+  --ops-primary-color: #1252ad;
+  --ops-danger-color: #c71f24;
+  --ops-text-primary: #0f131a;
+  --ops-text-secondary: #616e80;
+  --ops-border-color: #d8dee8;
+  --ops-bg-page: #f0f2f6;
+  --ops-bg-panel: #ffffff;
+  --ops-shadow-panel: 0 8px 24px rgb(15 19 26 / 6%);
+}
