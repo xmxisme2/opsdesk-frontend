@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   CirclePlus,
   Delete,
@@ -11,6 +11,7 @@ import {
   SwitchButton,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { isRequestCanceled } from '@/api/http'
 import { getAvatarOptions } from '@/api/modules/auth'
 import { searchRoles } from '@/api/modules/roles'
 import {
@@ -28,6 +29,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
 import { SEED_DEPARTMENT_OPTIONS, USER_STATUS_OPTIONS } from '@/constants/dictionaries'
 import { useAuthStore } from '@/stores/modules/auth'
+import { createDebouncedFn } from '@/utils/debounce'
 import { formatDateTime } from '@/utils/format-date'
 import type { AvatarOption } from '@/types/auth'
 import type { ApiId } from '@/types/api'
@@ -75,6 +77,7 @@ const roles = ref<RoleVO[]>([])
 const avatarOptions = ref<AvatarOption[]>([])
 const total = ref(0)
 const resetTarget = ref<UserVO | null>(null)
+let userLoadSerial = 0
 
 const query = reactive<UserSearchRequest>({
   page: 1,
@@ -177,6 +180,7 @@ const userRules: FormRules<UserFormModel> = {
 
 // 用户管理页只编排前端交互，账号唯一性、角色有效性、会话踢出和审计日志由后端统一处理。
 async function loadUsers() {
+  const currentSerial = ++userLoadSerial
   userTableLoading.value = true
   userTableError.value = ''
   try {
@@ -188,19 +192,27 @@ async function loadUsers() {
       roleCode: query.roleCode || undefined,
       status: query.status,
     })
+    if (currentSerial !== userLoadSerial) {
+      return
+    }
     users.value = result.records
     total.value = result.total
   } catch (error) {
+    if (isRequestCanceled(error) || currentSerial !== userLoadSerial) {
+      return
+    }
     userTableError.value = error instanceof Error ? error.message : '用户列表加载失败'
   } finally {
-    userTableLoading.value = false
+    if (currentSerial === userLoadSerial) {
+      userTableLoading.value = false
+    }
   }
 }
 
 async function loadRoles() {
   roleLoading.value = true
   try {
-    const result = await searchRoles({ page: 1, size: 100, enabled: true })
+    const result = await searchRoles({ page: 1, size: 100, enabled: true }, 'users:role-options')
     roles.value = result.records
   } finally {
     roleLoading.value = false
@@ -229,11 +241,22 @@ async function refreshAll() {
 }
 
 function handleSearch() {
+  debouncedSearch.cancel()
   query.page = 1
   loadUsers()
 }
 
+// 关键词输入使用短防抖，避免连续敲字反复打列表接口；显式查询、筛选和分页仍立即执行。
+const debouncedSearch = createDebouncedFn(() => {
+  handleSearch()
+}, 400)
+
+function handleKeywordInput() {
+  debouncedSearch()
+}
+
 function resetQuery() {
+  debouncedSearch.cancel()
   query.keyword = ''
   query.departmentId = undefined
   query.roleCode = undefined
@@ -457,6 +480,10 @@ watch(
 )
 
 onMounted(refreshAll)
+
+onBeforeUnmount(() => {
+  debouncedSearch.cancel()
+})
 </script>
 
 <template>
@@ -475,11 +502,12 @@ onMounted(refreshAll)
             v-model="query.keyword"
             clearable
             placeholder="姓名 / 邮箱 / 手机号"
+            @input="handleKeywordInput"
             @keyup.enter="handleSearch"
           />
         </el-form-item>
         <el-form-item label="主属部门">
-          <el-select v-model="query.departmentId" clearable placeholder="全部部门">
+          <el-select v-model="query.departmentId" clearable placeholder="全部部门" @change="handleSearch">
             <el-option
               v-for="department in SEED_DEPARTMENT_OPTIONS"
               :key="department.value"
@@ -489,12 +517,12 @@ onMounted(refreshAll)
           </el-select>
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="query.roleCode" :loading="roleLoading" clearable placeholder="全部角色">
+          <el-select v-model="query.roleCode" :loading="roleLoading" clearable placeholder="全部角色" @change="handleSearch">
             <el-option v-for="role in roleFilterOptions" :key="role.value" :label="role.label" :value="role.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="query.status" clearable placeholder="全部状态">
+          <el-select v-model="query.status" clearable placeholder="全部状态" @change="handleSearch">
             <el-option
               v-for="status in USER_STATUS_OPTIONS"
               :key="status.value"

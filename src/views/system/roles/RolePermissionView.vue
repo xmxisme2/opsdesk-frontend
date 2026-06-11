@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   Check,
   CirclePlus,
@@ -10,11 +10,13 @@ import {
   Search,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type TreeInstance } from 'element-plus'
+import { isRequestCanceled } from '@/api/http'
 import { createRole, deleteRole, getRoleDetail, searchRoles, updateRole, updateRolePermissions } from '@/api/modules/roles'
 import { getPermissionTree } from '@/api/modules/permissions'
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
+import { createDebouncedFn } from '@/utils/debounce'
 import { formatDateTime } from '@/utils/format-date'
 import type { ApiId } from '@/types/api'
 import type { PermissionType, PermissionVO, RoleCreateRequest, RoleSearchRequest, RoleUpdateRequest, RoleVO } from '@/types/role'
@@ -41,6 +43,8 @@ const roles = ref<RoleVO[]>([])
 const permissionTree = ref<PermissionVO[]>([])
 const selectedRole = ref<RoleVO | null>(null)
 const selectedRoleDetail = ref<RoleVO | null>(null)
+let roleLoadSerial = 0
+let roleDetailSerial = 0
 
 const query = reactive<RoleSearchRequest>({
   page: 1,
@@ -116,6 +120,7 @@ const permissionParentMap = computed(() => buildPermissionParentMap(permissionTr
 
 // 角色权限页以列表选择驱动右侧权限树，避免页面直接拼接接口路径或在多个弹窗中重复维护权限状态。
 async function loadRoles(keepSelected = true) {
+  const currentSerial = ++roleLoadSerial
   roleTableLoading.value = true
   roleTableError.value = ''
   try {
@@ -125,6 +130,9 @@ async function loadRoles(keepSelected = true) {
       keyword: query.keyword?.trim() || undefined,
       enabled: query.enabled,
     })
+    if (currentSerial !== roleLoadSerial) {
+      return
+    }
     roles.value = result.records
     total.value = result.total
 
@@ -138,9 +146,14 @@ async function loadRoles(keepSelected = true) {
       clearPermissionChecks()
     }
   } catch (error) {
+    if (isRequestCanceled(error) || currentSerial !== roleLoadSerial) {
+      return
+    }
     roleTableError.value = error instanceof Error ? error.message : '角色列表加载失败'
   } finally {
-    roleTableLoading.value = false
+    if (currentSerial === roleLoadSerial) {
+      roleTableLoading.value = false
+    }
   }
 }
 
@@ -154,13 +167,20 @@ async function loadPermissionTree() {
 }
 
 async function loadRoleDetail(id: ApiId) {
+  const currentSerial = ++roleDetailSerial
   permissionLoading.value = true
   try {
-    selectedRoleDetail.value = await getRoleDetail(id)
+    const detail = await getRoleDetail(id)
+    if (currentSerial !== roleDetailSerial) {
+      return
+    }
+    selectedRoleDetail.value = detail
     await nextTick()
     permissionTreeRef.value?.setCheckedKeys(selectedRoleDetail.value.permissionIds ?? [])
   } finally {
-    permissionLoading.value = false
+    if (currentSerial === roleDetailSerial) {
+      permissionLoading.value = false
+    }
   }
 }
 
@@ -211,6 +231,7 @@ function roleDisplayName(role: RoleVO) {
 }
 
 function resetQuery() {
+  debouncedRoleSearch.cancel()
   query.keyword = ''
   query.enabled = undefined
   query.page = 1
@@ -218,8 +239,18 @@ function resetQuery() {
 }
 
 function handleSearch() {
+  debouncedRoleSearch.cancel()
   query.page = 1
   loadRoles(false)
+}
+
+// 角色关键词搜索只防抖输入过程；状态筛选、按钮和分页保持立即查询。
+const debouncedRoleSearch = createDebouncedFn(() => {
+  handleSearch()
+}, 400)
+
+function handleKeywordInput() {
+  debouncedRoleSearch()
 }
 
 function handlePageChange(page: number) {
@@ -348,6 +379,10 @@ async function refreshAll() {
 }
 
 onMounted(refreshAll)
+
+onBeforeUnmount(() => {
+  debouncedRoleSearch.cancel()
+})
 </script>
 
 <template>
@@ -365,9 +400,10 @@ onMounted(refreshAll)
         class="role-page__keyword"
         clearable
         placeholder="搜索角色编码、名称"
+        @input="handleKeywordInput"
         @keyup.enter="handleSearch"
       />
-      <el-select v-model="query.enabled" clearable placeholder="启停状态">
+      <el-select v-model="query.enabled" clearable placeholder="启停状态" @change="handleSearch">
         <el-option label="启用" :value="true" />
         <el-option label="停用" :value="false" />
       </el-select>

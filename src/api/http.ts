@@ -2,6 +2,7 @@ import axios, { type AxiosError, type AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { clearToken, getAccessToken, getRefreshToken, setAccessToken } from '@/utils/auth-token'
 import { normalizeErrorMessage } from '@/utils/error-message'
+import { createRequestDedupeKey, runDedupeRequest, type RequestDedupeMode } from '@/utils/request-dedupe'
 import type { ApiResponse } from '@/types/api'
 import type { LoginResult } from '@/types/auth'
 
@@ -24,6 +25,8 @@ let refreshPromise: Promise<string> | null = null
 
 export interface OpsdeskRequestConfig extends AxiosRequestConfig {
   silentError?: boolean
+  dedupe?: RequestDedupeMode
+  dedupeKey?: string
 }
 
 // 请求进入后端前统一注入 Bearer token，页面和业务 API 不直接拼接鉴权头。
@@ -62,8 +65,28 @@ async function refreshAccessToken() {
   return refreshPromise
 }
 
-async function executePost<T>(url: string, data: unknown, config: OpsdeskRequestConfig | undefined, allowRefresh: boolean): Promise<T> {
-  const response = await http.post<ApiResponse<T>>(url, data, config)
+function toAxiosConfig(config: OpsdeskRequestConfig | undefined, signal?: AbortSignal): AxiosRequestConfig | undefined {
+  if (!config && !signal) {
+    return undefined
+  }
+  const axiosConfig: OpsdeskRequestConfig = { ...(config ?? {}) }
+  delete axiosConfig.silentError
+  delete axiosConfig.dedupe
+  delete axiosConfig.dedupeKey
+  return {
+    ...axiosConfig,
+    signal: axiosConfig.signal ?? signal,
+  }
+}
+
+async function executePost<T>(
+  url: string,
+  data: unknown,
+  config: OpsdeskRequestConfig | undefined,
+  allowRefresh: boolean,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await http.post<ApiResponse<T>>(url, data, toAxiosConfig(config, signal))
   const payload = response.data
   if (payload.code === 200) {
     return payload.data
@@ -71,7 +94,7 @@ async function executePost<T>(url: string, data: unknown, config: OpsdeskRequest
   if (payload.code === 401001 && allowRefresh && canRefreshFor(url)) {
     try {
       await refreshAccessToken()
-      return executePost<T>(url, data, config, false)
+      return executePost<T>(url, data, config, false, signal)
     } catch {
       clearToken()
     }
@@ -86,10 +109,13 @@ async function executePost<T>(url: string, data: unknown, config: OpsdeskRequest
   throw new OpsdeskApiError(message, payload.code)
 }
 
-export async function post<T>(url: string, data?: unknown, config?: OpsdeskRequestConfig): Promise<T> {
+async function postWithRefresh<T>(url: string, data: unknown, config: OpsdeskRequestConfig | undefined, signal?: AbortSignal): Promise<T> {
   try {
-    return await executePost<T>(url, data, config, true)
+    return await executePost<T>(url, data, config, true, signal)
   } catch (error) {
+    if (axios.isCancel(error)) {
+      throw error
+    }
     if (error instanceof OpsdeskApiError) {
       throw error
     }
@@ -97,7 +123,7 @@ export async function post<T>(url: string, data?: unknown, config?: OpsdeskReque
     if (axiosError.response?.data?.code === 401001 && canRefreshFor(url)) {
       try {
         await refreshAccessToken()
-        return await executePost<T>(url, data, config, false)
+        return await executePost<T>(url, data, config, false, signal)
       } catch {
         clearToken()
       }
@@ -108,6 +134,20 @@ export async function post<T>(url: string, data?: unknown, config?: OpsdeskReque
     }
     throw new OpsdeskApiError(message, axiosError.response?.data?.code)
   }
+}
+
+export function isRequestCanceled(error: unknown) {
+  return axios.isCancel(error)
+}
+
+export function post<T>(url: string, data?: unknown, config?: OpsdeskRequestConfig): Promise<T> {
+  const dedupeKey = config?.dedupeKey ?? createRequestDedupeKey('POST', url, data)
+  // HTTP 层只做前端体验治理：列表查询可取消旧请求，动作接口可忽略重复提交；安全限流仍以后端为准。
+  return runDedupeRequest<T>({
+    mode: config?.dedupe,
+    key: dedupeKey,
+    executor: (signal) => postWithRefresh<T>(url, data, config, signal),
+  })
 }
 
 export default http
