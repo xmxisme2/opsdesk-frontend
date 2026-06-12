@@ -13,6 +13,7 @@ import {
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { isRequestCanceled } from '@/api/http'
 import { getAvatarOptions } from '@/api/modules/auth'
+import { getDepartmentTree } from '@/api/modules/departments'
 import { searchRoles } from '@/api/modules/roles'
 import {
   createUser,
@@ -27,9 +28,15 @@ import {
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
-import { SEED_DEPARTMENT_OPTIONS, USER_STATUS_OPTIONS } from '@/constants/dictionaries'
+import { USER_STATUS_OPTIONS } from '@/constants/dictionaries'
 import { useAuthStore } from '@/stores/modules/auth'
 import { createDebouncedFn } from '@/utils/debounce'
+import {
+  buildDepartmentTreeOptions,
+  flattenDepartmentOptions,
+  type DepartmentOption,
+  type DepartmentTreeOption,
+} from '@/utils/department-options'
 import { formatDateTime } from '@/utils/format-date'
 import type { AvatarOption } from '@/types/auth'
 import type { ApiId } from '@/types/api'
@@ -66,6 +73,7 @@ const drawerLoading = ref(false)
 const userSaving = ref(false)
 const roleLoading = ref(false)
 const avatarLoading = ref(false)
+const departmentLoading = ref(false)
 const resetDialogVisible = ref(false)
 const resetLoading = ref(false)
 const resetPasswordValue = ref('')
@@ -75,6 +83,8 @@ const formRef = ref<FormInstance>()
 const users = ref<UserVO[]>([])
 const roles = ref<RoleVO[]>([])
 const avatarOptions = ref<AvatarOption[]>([])
+const departmentOptions = ref<DepartmentOption[]>([])
+const departmentTreeOptions = ref<DepartmentTreeOption[]>([])
 const total = ref(0)
 const resetTarget = ref<UserVO | null>(null)
 let userLoadSerial = 0
@@ -219,6 +229,18 @@ async function loadRoles() {
   }
 }
 
+// 用户管理页筛选和表单共用后端部门树，部门增删改后刷新即可拿到最新组织结构。
+async function loadDepartmentOptions() {
+  departmentLoading.value = true
+  try {
+    const departments = await getDepartmentTree({ enabled: true })
+    departmentOptions.value = flattenDepartmentOptions(departments)
+    departmentTreeOptions.value = buildDepartmentTreeOptions(departments)
+  } finally {
+    departmentLoading.value = false
+  }
+}
+
 async function loadAvatarOptions(gender = form.gender) {
   avatarLoading.value = true
   try {
@@ -236,7 +258,7 @@ async function loadAvatarOptions(gender = form.gender) {
 }
 
 async function refreshAll() {
-  await Promise.allSettled([loadRoles(), loadAvatarOptions()])
+  await Promise.allSettled([loadRoles(), loadDepartmentOptions(), loadAvatarOptions()])
   await loadUsers()
 }
 
@@ -457,7 +479,7 @@ function displayUserName(row: UserVO) {
 }
 
 function departmentName(id?: ApiId) {
-  return SEED_DEPARTMENT_OPTIONS.find((item) => item.value === id)?.label ?? '-'
+  return departmentOptions.value.find((item) => item.value === id)?.label.trim() ?? '-'
 }
 
 function roleText(row: UserVO) {
@@ -507,14 +529,19 @@ onBeforeUnmount(() => {
           />
         </el-form-item>
         <el-form-item label="主属部门">
-          <el-select v-model="query.departmentId" clearable placeholder="全部部门" @change="handleSearch">
-            <el-option
-              v-for="department in SEED_DEPARTMENT_OPTIONS"
-              :key="department.value"
-              :label="department.label"
-              :value="department.value"
-            />
-          </el-select>
+          <el-tree-select
+            v-model="query.departmentId"
+            :data="departmentTreeOptions"
+            :loading="departmentLoading"
+            check-strictly
+            clearable
+            filterable
+            node-key="value"
+            placeholder="全部部门"
+            empty-text="暂无部门"
+            :render-after-expand="false"
+            @change="handleSearch"
+          />
         </el-form-item>
         <el-form-item label="角色">
           <el-select v-model="query.roleCode" :loading="roleLoading" clearable placeholder="全部角色" @change="handleSearch">
@@ -641,14 +668,18 @@ onBeforeUnmount(() => {
                 <el-input v-model="form.email" maxlength="128" placeholder="请输入邮箱" />
               </el-form-item>
               <el-form-item label="主属部门" prop="departmentId">
-                <el-select v-model="form.departmentId" class="user-drawer__full" placeholder="请选择主属部门">
-                  <el-option
-                    v-for="department in SEED_DEPARTMENT_OPTIONS"
-                    :key="department.value"
-                    :label="department.label"
-                    :value="department.value"
-                  />
-                </el-select>
+                <el-tree-select
+                  v-model="form.departmentId"
+                  class="user-drawer__full"
+                  :data="departmentTreeOptions"
+                  :loading="departmentLoading"
+                  check-strictly
+                  filterable
+                  node-key="value"
+                  placeholder="请选择主属部门"
+                  empty-text="暂无部门"
+                  :render-after-expand="false"
+                />
               </el-form-item>
             </div>
           </section>
