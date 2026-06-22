@@ -1,12 +1,375 @@
 <script setup lang="ts">
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { ArrowLeft, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadFiles, type UploadUserFile } from 'element-plus'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  createTicket,
+  getTicketCategoryTree,
+  getTicketDetail,
+  submitTicket,
+  updateTicket,
+  type TicketMutationRequest,
+} from '@/api/modules/tickets'
+import { uploadFile } from '@/api/modules/files'
 import PageHeader from '@/components/common/PageHeader.vue'
-import FeaturePlaceholder from '@/components/common/FeaturePlaceholder.vue'
+import { TICKET_PRIORITY_OPTIONS } from '@/constants/ticket'
+import type { ApiId } from '@/types/api'
+import type { TicketCategoryVO, TicketPriority, TicketVO } from '@/types/ticket'
 
-const items = ['标题、描述、分类、优先级', '期望完成时间', '附件上传进度', '保存草稿或直接提交']
+type TicketFormModel = {
+  title: string
+  description: string
+  categoryId: ApiId | ''
+  priority: TicketPriority
+  dueTime: string
+  tags: string[]
+}
+
+const MAX_FILE_COUNT = 10
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'pdf', 'docx', 'xlsx', 'txt', 'log', 'zip'])
+
+const route = useRoute()
+const router = useRouter()
+const formRef = ref<FormInstance>()
+const categories = ref<TicketCategoryVO[]>([])
+const fileList = ref<UploadUserFile[]>([])
+const loading = ref(false)
+const saving = ref(false)
+const uploading = ref(false)
+const existingTicket = ref<TicketVO | null>(null)
+
+const draftId = computed(() => (typeof route.query.id === 'string' ? route.query.id : undefined))
+const isEditing = computed(() => Boolean(draftId.value))
+const pageTitle = computed(() => (isEditing.value ? '编辑工单草稿' : '创建工单'))
+
+const form = reactive<TicketFormModel>({
+  title: '',
+  description: '',
+  categoryId: '',
+  priority: 'MEDIUM',
+  dueTime: '',
+  tags: [],
+})
+
+const rules: FormRules<TicketFormModel> = {
+  title: [
+    { required: true, message: '请输入工单标题', trigger: 'blur' },
+    { max: 200, message: '标题不能超过 200 个字符', trigger: 'blur' },
+  ],
+  description: [{ required: true, message: '请描述问题现象和影响范围', trigger: 'blur' }],
+  categoryId: [{ required: true, message: '请选择工单分类', trigger: 'change' }],
+  priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
+}
+
+async function loadPage() {
+  loading.value = true
+  try {
+    categories.value = await getTicketCategoryTree({ enabled: true })
+    if (draftId.value) {
+      const ticket = await getTicketDetail(draftId.value)
+      if (ticket.status !== 'DRAFT') {
+        ElMessage.warning('只有草稿状态可以继续编辑')
+        router.replace(`/tickets/${ticket.id}`)
+        return
+      }
+      existingTicket.value = ticket
+      Object.assign(form, {
+        title: ticket.title,
+        description: ticket.description,
+        categoryId: ticket.categoryId ?? '',
+        priority: ticket.priority,
+        dueTime: ticket.dueTime ?? '',
+        tags: ticket.tags ?? [],
+      })
+      await nextTick()
+      formRef.value?.clearValidate()
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function validateFile(file: File) {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  if (!ALLOWED_EXTENSIONS.has(extension)) {
+    ElMessage.warning(`不支持 .${extension || '未知'} 文件`)
+    return false
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    ElMessage.warning('单个附件不能超过 20MB')
+    return false
+  }
+  return true
+}
+
+function handleFileChange(_file: UploadFile, files: UploadFiles) {
+  const validFiles = files.filter((item) => !item.raw || validateFile(item.raw))
+  fileList.value = validFiles.slice(0, MAX_FILE_COUNT)
+  if (validFiles.length > MAX_FILE_COUNT) {
+    ElMessage.warning('单个工单最多上传 10 个附件')
+  }
+}
+
+function buildPayload(): TicketMutationRequest {
+  return {
+    title: form.title.trim(),
+    description: form.description.trim(),
+    categoryId: form.categoryId,
+    priority: form.priority,
+    dueTime: form.dueTime || undefined,
+    tags: form.tags.map((tag) => tag.trim()).filter(Boolean),
+  }
+}
+
+async function uploadSelectedFiles(ticketId: ApiId) {
+  const rawFiles = fileList.value.flatMap((file) => (file.raw ? [file.raw] : []))
+  if (!rawFiles.length) {
+    return
+  }
+  uploading.value = true
+  try {
+    for (const file of rawFiles) {
+      await uploadFile({ bizType: 'TICKET', bizId: ticketId, file })
+    }
+  } catch {
+    ElMessage.warning('工单已保存，但部分附件上传失败，可在详情页继续上传')
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function saveTicket(submitNow: boolean) {
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid) {
+    return
+  }
+
+  saving.value = true
+  try {
+    let ticket: TicketVO
+    if (draftId.value) {
+      ticket = await updateTicket(draftId.value, buildPayload())
+      if (submitNow) {
+        ticket = await submitTicket(ticket.id)
+      }
+    } else {
+      ticket = await createTicket({ ...buildPayload(), submitNow })
+    }
+    await uploadSelectedFiles(ticket.id)
+    ElMessage.success(submitNow ? '工单已提交' : '草稿已保存')
+    router.push(submitNow ? `/tickets/${ticket.id}` : { path: '/tickets/create', query: { id: ticket.id } })
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(loadPage)
 </script>
 
 <template>
-  <!-- 创建工单支持 submitNow，一步提交由后端状态机决定目标状态。 -->
-  <PageHeader title="创建工单" />
-  <FeaturePlaceholder title="工单创建表单" phase="待接入 Figma Frame 64:100" :items="items" />
+  <section v-loading="loading" class="page-stack ticket-create-page">
+    <PageHeader :title="pageTitle" description="填写问题信息，可保存草稿或直接提交进入待分派">
+      <template #actions>
+        <el-button :icon="ArrowLeft" @click="router.back()">返回</el-button>
+      </template>
+    </PageHeader>
+
+    <div class="ticket-create-page__layout">
+      <section class="page-panel ticket-create-page__form-panel">
+        <h2>问题信息</h2>
+        <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+          <el-form-item label="标题" prop="title">
+            <el-input v-model="form.title" maxlength="200" show-word-limit placeholder="简要描述遇到的问题" />
+          </el-form-item>
+
+          <div class="ticket-create-page__form-grid">
+            <el-form-item label="分类" prop="categoryId">
+              <el-tree-select
+                v-model="form.categoryId"
+                :data="categories"
+                :props="{ value: 'id', label: 'name', children: 'children' }"
+                check-strictly
+                filterable
+                placeholder="请选择分类"
+              />
+            </el-form-item>
+            <el-form-item label="优先级" prop="priority">
+              <el-select v-model="form.priority">
+                <el-option v-for="item in TICKET_PRIORITY_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="期望完成时间">
+              <el-date-picker
+                v-model="form.dueTime"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                placeholder="未填写时按分类 SLA 计算"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="标签">
+              <el-select
+                v-model="form.tags"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                collapse-tags
+                :max-collapse-tags="3"
+                placeholder="输入后回车创建标签"
+              />
+            </el-form-item>
+          </div>
+
+          <el-form-item label="问题描述" prop="description">
+            <el-input
+              v-model="form.description"
+              type="textarea"
+              :rows="8"
+              maxlength="5000"
+              show-word-limit
+              placeholder="说明问题现象、发生时间、影响范围和已经尝试过的处理方式"
+            />
+          </el-form-item>
+
+          <el-form-item label="附件">
+            <el-upload
+              v-model:file-list="fileList"
+              drag
+              multiple
+              :auto-upload="false"
+              :limit="MAX_FILE_COUNT"
+              :on-change="handleFileChange"
+              accept=".jpg,.jpeg,.png,.pdf,.docx,.xlsx,.txt,.log,.zip"
+              class="ticket-create-page__upload"
+            >
+              <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+              <div class="el-upload__text">拖拽或点击选择截图、日志和文档</div>
+              <template #tip>
+                <div class="el-upload__tip">单文件最大 20MB，最多 10 个；图片和文本可预览，其余文件提供下载。</div>
+              </template>
+            </el-upload>
+          </el-form-item>
+        </el-form>
+
+        <div class="ticket-create-page__footer">
+          <el-button :loading="saving && !uploading" @click="saveTicket(false)">保存草稿</el-button>
+          <el-button type="primary" :icon="DocumentAdd" :loading="saving || uploading" @click="saveTicket(true)">提交工单</el-button>
+        </div>
+      </section>
+
+      <aside class="page-panel ticket-create-page__aside">
+        <div class="ticket-create-page__aside-heading">
+          <h2>提交提示</h2>
+          <el-tag type="info" round>首版规则</el-tag>
+        </div>
+        <div class="ticket-create-page__hint">
+          <strong>草稿编号</strong>
+          <span>保存草稿时不生成编号，提交后由系统统一生成。</span>
+        </div>
+        <div class="ticket-create-page__hint">
+          <strong>默认 SLA</strong>
+          <span>未填写期望时间时，系统按所选分类的默认 SLA 自动计算。</span>
+        </div>
+        <div class="ticket-create-page__hint">
+          <strong>附件安全</strong>
+          <span>请勿上传密码、密钥或包含敏感个人信息的文件。</span>
+        </div>
+        <el-alert title="AI 分类与优先级建议暂未开放" type="info" :closable="false" show-icon />
+      </aside>
+    </div>
+  </section>
 </template>
+
+<style scoped>
+.ticket-create-page__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 304px;
+  gap: 20px;
+  align-items: start;
+}
+
+.ticket-create-page h2 {
+  margin: 0 0 20px;
+  font-size: 18px;
+}
+
+.ticket-create-page__form-panel {
+  padding: 26px;
+}
+
+.ticket-create-page__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+}
+
+.ticket-create-page__upload {
+  width: 100%;
+}
+
+.ticket-create-page__upload :deep(.el-upload-dragger) {
+  padding: 28px 20px;
+  background: #f7f9fc;
+}
+
+.ticket-create-page__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.ticket-create-page__aside {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.ticket-create-page__aside-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ticket-create-page__aside-heading h2 {
+  margin: 0;
+}
+
+.ticket-create-page__hint {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--ops-border-color);
+  border-radius: 8px;
+  background: #f4f7fb;
+  padding: 16px;
+}
+
+.ticket-create-page__hint strong {
+  font-size: 13px;
+}
+
+.ticket-create-page__hint span {
+  color: var(--ops-text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1000px) {
+  .ticket-create-page__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .ticket-create-page__form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-create-page__form-panel {
+    padding: 18px;
+  }
+}
+</style>
