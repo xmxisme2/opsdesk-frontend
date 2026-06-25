@@ -136,6 +136,84 @@ async function postWithRefresh<T>(url: string, data: unknown, config: OpsdeskReq
   }
 }
 
+async function parseBlobApiResponse(blob: Blob): Promise<ApiResponse | null> {
+  if (!blob.type.includes('application/json')) {
+    return null
+  }
+  try {
+    return JSON.parse(await blob.text()) as ApiResponse
+  } catch {
+    return null
+  }
+}
+
+async function executePostBlob(
+  url: string,
+  data: unknown,
+  config: OpsdeskRequestConfig | undefined,
+  allowRefresh: boolean,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await http.post<Blob>(url, data, {
+    ...toAxiosConfig(config, signal),
+    responseType: 'blob',
+  })
+  const payload = await parseBlobApiResponse(response.data)
+  if (!payload) {
+    return response.data
+  }
+  if (payload.code === 200) {
+    return response.data
+  }
+  if (payload.code === 401001 && allowRefresh && canRefreshFor(url)) {
+    try {
+      await refreshAccessToken()
+      return executePostBlob(url, data, config, false, signal)
+    } catch {
+      clearToken()
+    }
+  }
+  const message = normalizeErrorMessage(payload)
+  if (payload.code === 401001) {
+    clearToken()
+  }
+  if (!config?.silentError) {
+    ElMessage.error(message)
+  }
+  throw new OpsdeskApiError(message, payload.code)
+}
+
+async function postBlobWithRefresh(url: string, data: unknown, config: OpsdeskRequestConfig | undefined, signal?: AbortSignal): Promise<Blob> {
+  try {
+    return await executePostBlob(url, data, config, true, signal)
+  } catch (error) {
+    if (axios.isCancel(error)) {
+      throw error
+    }
+    if (error instanceof OpsdeskApiError) {
+      throw error
+    }
+    const axiosError = error as AxiosError<ApiResponse | Blob>
+    const blobPayload = axiosError.response?.data instanceof Blob
+      ? await parseBlobApiResponse(axiosError.response.data)
+      : null
+    if (blobPayload?.code === 401001 && canRefreshFor(url)) {
+      try {
+        await refreshAccessToken()
+        return await executePostBlob(url, data, config, false, signal)
+      } catch {
+        clearToken()
+      }
+    }
+    const responsePayload = blobPayload ?? (axiosError.response?.data as ApiResponse | undefined)
+    const message = normalizeErrorMessage(responsePayload)
+    if (!config?.silentError) {
+      ElMessage.error(message)
+    }
+    throw new OpsdeskApiError(message, responsePayload?.code)
+  }
+}
+
 export function isRequestCanceled(error: unknown) {
   return axios.isCancel(error)
 }
@@ -147,6 +225,16 @@ export function post<T>(url: string, data?: unknown, config?: OpsdeskRequestConf
     mode: config?.dedupe,
     key: dedupeKey,
     executor: (signal) => postWithRefresh<T>(url, data, config, signal),
+  })
+}
+
+export function postBlob(url: string, data?: unknown, config?: OpsdeskRequestConfig): Promise<Blob> {
+  const dedupeKey = config?.dedupeKey ?? createRequestDedupeKey('POST', url, data)
+  // 文件流请求仍复用统一 HTTP 层，确保 Bearer token、refresh 和业务错误提示一致。
+  return runDedupeRequest<Blob>({
+    mode: config?.dedupe,
+    key: dedupeKey,
+    executor: (signal) => postBlobWithRefresh(url, data, config, signal),
   })
 }
 

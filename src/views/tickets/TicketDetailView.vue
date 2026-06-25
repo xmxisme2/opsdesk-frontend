@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   ArrowLeft,
   Check,
@@ -33,7 +33,7 @@ import {
   unwatchTicket,
   watchTicket,
 } from '@/api/modules/tickets'
-import { getDownloadUrl, previewFile } from '@/api/modules/files'
+import { downloadFileBlob, previewFile, previewFileBlob } from '@/api/modules/files'
 import { searchTeams } from '@/api/modules/teams'
 import PageHeader from '@/components/common/PageHeader.vue'
 import PriorityTag from '@/components/business/PriorityTag.vue'
@@ -307,11 +307,12 @@ async function openPreview(file: FileVO) {
   previewLoading.value = true
   previewTitle.value = file.fileName
   previewContent.value = ''
-  previewImageUrl.value = ''
+  clearPreviewImageUrl()
   try {
     const result = await previewFile(file.id)
     if (result.previewType === 'IMAGE') {
-      previewImageUrl.value = result.previewUrl ?? ''
+      const blob = await previewFileBlob(file.id)
+      previewImageUrl.value = URL.createObjectURL(blob)
     } else {
       previewContent.value = result.content ?? ''
     }
@@ -320,11 +321,27 @@ async function openPreview(file: FileVO) {
   }
 }
 
-function downloadFile(file: FileVO) {
-  window.open(file.downloadUrl || getDownloadUrl(file.id), '_blank', 'noopener,noreferrer')
+async function downloadFile(file: FileVO) {
+  const blob = await downloadFileBlob(file.id)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = file.fileName || '附件'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function clearPreviewImageUrl() {
+  if (previewImageUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(previewImageUrl.value)
+  }
+  previewImageUrl.value = ''
 }
 
 onMounted(refreshPage)
+onBeforeUnmount(clearPreviewImageUrl)
 </script>
 
 <template>

@@ -6,7 +6,8 @@ export type BizType = 'TICKET' | 'COMMENT' | 'ATTACHMENT' | 'KNOWLEDGE' | 'USER'
 export interface FileVO {
   id: ApiId
   bizType: BizType
-  bizId: ApiId
+  bizId?: ApiId | null
+  tempToken?: string | null
   fileName: string
   fileSize: number
   contentType: string
