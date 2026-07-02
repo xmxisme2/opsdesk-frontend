@@ -2,11 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   ArrowLeft,
+  ChatDotRound,
   Check,
   Close,
   Connection,
+  Delete,
   Download,
   Edit,
+  Paperclip,
   Refresh,
   RefreshRight,
   Select,
@@ -16,6 +19,7 @@ import {
   Upload,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { UploadRequestOptions } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import {
   acceptTicket,
@@ -33,9 +37,11 @@ import {
   unwatchTicket,
   watchTicket,
 } from '@/api/modules/tickets'
-import { downloadFileBlob, previewFile, previewFileBlob } from '@/api/modules/files'
-import { searchTeams } from '@/api/modules/teams'
+import { createComment, deleteComment, searchComments } from '@/api/modules/comments'
+import { deleteFile, downloadFileBlob, previewFile, previewFileBlob, uploadFile } from '@/api/modules/files'
+import { searchTeamMembers, searchTeams } from '@/api/modules/teams'
 import PageHeader from '@/components/common/PageHeader.vue'
+import PaginationBar from '@/components/common/PaginationBar.vue'
 import PriorityTag from '@/components/business/PriorityTag.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import ErrorState from '@/components/feedback/ErrorState.vue'
@@ -43,10 +49,11 @@ import EmptyState from '@/components/feedback/EmptyState.vue'
 import { TICKET_ACTION_LABELS, TICKET_STATUS_LABELS } from '@/constants/ticket'
 import { useAuthStore } from '@/stores/modules/auth'
 import { formatDateTime } from '@/utils/format-date'
-import { formatTicketDueState, resolveTicketActions } from '@/utils/ticket-view'
+import { formatTicketDueState, resolveTicketActions, usesTeamMemberPicker } from '@/utils/ticket-view'
 import type { ApiId } from '@/types/api'
+import type { CommentVO } from '@/api/modules/comments'
 import type { FileVO } from '@/types/file'
-import type { TeamVO } from '@/types/organization'
+import type { TeamMemberVO, TeamVO } from '@/types/organization'
 import type { TicketAction, TicketOperationLogVO, TicketStatus, TicketVO } from '@/types/ticket'
 
 const STATUS_FLOW: { status: TicketStatus; label: string }[] = [
@@ -73,6 +80,7 @@ const OPERATION_LABELS: Record<string, string> = {
   TICKET_CANCEL: '取消工单',
   TICKET_WATCH: '关注工单',
   TICKET_UNWATCH: '取消关注',
+  COMMENT_CREATE: '工单评论',
 }
 
 const route = useRoute()
@@ -84,7 +92,17 @@ const error = ref('')
 const ticket = ref<TicketVO | null>(null)
 const logs = ref<TicketOperationLogVO[]>([])
 const logsLoading = ref(false)
+const comments = ref<CommentVO[]>([])
+const commentsLoading = ref(false)
+const commentsPage = ref(1)
+const commentsSize = ref(10)
+const commentsTotal = ref(0)
+const commentSubmitting = ref(false)
+const commentUploadLoading = ref(false)
 const teams = ref<TeamVO[]>([])
+const teamsLoading = ref(false)
+const teamMembers = ref<TeamMemberVO[]>([])
+const teamMembersLoading = ref(false)
 const actionDialogVisible = ref(false)
 const actionLoading = ref(false)
 const activeAction = ref<TicketAction>('submit')
@@ -101,11 +119,18 @@ const actionForm = reactive({
   remark: '',
 })
 
+const commentForm = reactive({
+  content: '',
+  internal: false,
+  tempToken: '',
+  files: [] as FileVO[],
+})
+
 const availableActions = computed(() => (ticket.value ? resolveTicketActions(ticket.value, authStore.currentUser) : []))
-const dueState = computed(() => formatTicketDueState(ticket.value?.dueTime, ticket.value?.overdue))
+const dueState = computed(() => formatTicketDueState(ticket.value?.dueTime, ticket.value?.overdue, ticket.value?.status))
 const currentFlowIndex = computed(() => STATUS_FLOW.findIndex((item) => item.status === ticket.value?.status))
 const dialogTitle = computed(() => TICKET_ACTION_LABELS[activeAction.value])
-const needsTeam = computed(() => activeAction.value === 'assign' || activeAction.value === 'transfer')
+const needsTeam = computed(() => usesTeamMemberPicker(activeAction.value))
 const needsReason = computed(() => ['reject', 'reopen', 'cancel'].includes(activeAction.value))
 const optionalReason = computed(() => activeAction.value === 'close')
 const needsRemark = computed(() => activeAction.value === 'complete')
@@ -133,31 +158,86 @@ async function loadLogs() {
   }
 }
 
-async function loadTeams() {
+async function loadComments() {
+  commentsLoading.value = true
   try {
-    const result = await searchTeams({ page: 1, size: 100, enabled: true })
+    const result = await searchComments(ticketId.value, {
+      page: commentsPage.value,
+      size: commentsSize.value,
+    })
+    comments.value = result.records
+    commentsPage.value = result.page
+    commentsSize.value = result.size
+    commentsTotal.value = result.total
+  } finally {
+    commentsLoading.value = false
+  }
+}
+
+async function loadTeams(keyword = '') {
+  teamsLoading.value = true
+  try {
+    const result = await searchTeams({ page: 1, size: 100, enabled: true, keyword: keyword.trim() || undefined })
     teams.value = result.records
   } catch {
     teams.value = []
+  } finally {
+    teamsLoading.value = false
+  }
+}
+
+async function loadTeamMembers(keyword = '') {
+  if (!actionForm.teamId) {
+    teamMembers.value = []
+    return
+  }
+  teamMembersLoading.value = true
+  try {
+    const result = await searchTeamMembers(actionForm.teamId, {
+      page: 1,
+      size: 50,
+      keyword: keyword.trim() || undefined,
+    })
+    teamMembers.value = result.records
+  } catch {
+    teamMembers.value = []
+  } finally {
+    teamMembersLoading.value = false
   }
 }
 
 async function refreshPage() {
-  await Promise.allSettled([loadTicket(), loadLogs(), loadTeams()])
+  await Promise.allSettled([loadTicket(), loadLogs(), loadTeams(), loadComments()])
 }
 
-function resetActionForm() {
+function resetActionForm(action: TicketAction) {
   Object.assign(actionForm, {
     teamId: ticket.value?.teamId,
     assigneeId: ticket.value?.assigneeId ?? '',
     reason: '',
     remark: '',
   })
+  if (usesTeamMemberPicker(action) && actionForm.teamId) {
+    void loadTeamMembers()
+  } else {
+    teamMembers.value = []
+  }
+}
+
+function handleTeamChange() {
+  actionForm.assigneeId = ''
+  void loadTeamMembers()
+}
+
+function memberLabel(member: TeamMemberVO) {
+  const user = member.user
+  const name = user.nickname || user.username || user.phone || user.id
+  return `${name}${user.phone ? ` / ${user.phone}` : ''}${member.leader ? ' / 负责人' : ''}`
 }
 
 async function openAction(action: TicketAction) {
   activeAction.value = action
-  resetActionForm()
+  resetActionForm(action)
   if (action === 'submit' || action === 'accept') {
     const confirmed = await ElMessageBox.confirm(`确认${TICKET_ACTION_LABELS[action]}？`, TICKET_ACTION_LABELS[action], {
       confirmButtonText: '确认',
@@ -177,7 +257,7 @@ async function executeAction() {
     return
   }
   if (needsTeam.value && !actionForm.teamId && !actionForm.assigneeId.trim()) {
-    ElMessage.warning('处理团队和处理人 ID 至少填写一个')
+    ElMessage.warning('请选择处理团队，处理人可从团队人员列表中选择')
     return
   }
   if (needsReason.value && !actionForm.reason.trim()) {
@@ -254,6 +334,100 @@ async function toggleWatch() {
     ElMessage.success('已关注工单')
   }
   await loadLogs()
+}
+
+async function submitComment() {
+  const content = commentForm.content.trim()
+  if (!content) {
+    ElMessage.warning('请输入评论内容')
+    return
+  }
+  commentSubmitting.value = true
+  try {
+    await createComment(ticketId.value, {
+      content,
+      commentType: commentForm.internal ? 'INTERNAL' : 'PUBLIC',
+      tempToken: commentForm.files.length ? commentForm.tempToken : undefined,
+    })
+    ElMessage.success('评论已发布')
+    resetCommentForm()
+    commentsPage.value = 1
+    await Promise.all([loadComments(), loadLogs()])
+  } finally {
+    commentSubmitting.value = false
+  }
+}
+
+async function removeComment(comment: CommentVO) {
+  const confirmed = await ElMessageBox.confirm('确认删除这条评论？', '删除评论', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).catch(() => false)
+  if (!confirmed) {
+    return
+  }
+  await deleteComment(comment.id)
+  ElMessage.success('评论已删除')
+  await Promise.all([loadComments(), loadLogs()])
+}
+
+async function uploadCommentAttachment(options: UploadRequestOptions) {
+  commentUploadLoading.value = true
+  try {
+    const file = await uploadFile({
+      bizType: 'COMMENT',
+      tempToken: ensureCommentTempToken(),
+      file: options.file,
+    })
+    commentForm.files.push(file)
+    options.onSuccess(file)
+    ElMessage.success('附件已上传')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '附件上传失败')
+    throw error
+  } finally {
+    commentUploadLoading.value = false
+  }
+}
+
+async function removeCommentAttachment(file: FileVO) {
+  await deleteFile(file.id)
+  commentForm.files = commentForm.files.filter((item) => item.id !== file.id)
+  ElMessage.success('附件已移除')
+}
+
+function resetCommentForm() {
+  Object.assign(commentForm, {
+    content: '',
+    internal: false,
+    tempToken: '',
+    files: [],
+  })
+}
+
+function ensureCommentTempToken() {
+  if (!commentForm.tempToken) {
+    commentForm.tempToken = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+  return commentForm.tempToken
+}
+
+function canDeleteComment(comment: CommentVO) {
+  const currentUserId = authStore.currentUser?.id
+  const admin = authStore.currentUser?.roles?.some((role) => role.code === 'ADMIN')
+  return Boolean(currentUserId && (comment.authorId === currentUserId || admin))
+}
+
+function updateCommentsPage(value: number) {
+  commentsPage.value = value
+  void loadComments()
+}
+
+function updateCommentsSize(value: number) {
+  commentsPage.value = 1
+  commentsSize.value = value
+  void loadComments()
 }
 
 function actionType(action: TicketAction) {
@@ -366,7 +540,7 @@ onBeforeUnmount(clearPreviewImageUrl)
             <div class="ticket-detail-page__tags">
               <StatusTag :status="ticket.status" />
               <PriorityTag :priority="ticket.priority" />
-              <el-tag v-if="ticket.overdue" type="danger">已超时</el-tag>
+              <el-tag v-if="dueState.tone === 'danger'" type="danger">已超时</el-tag>
               <el-tag v-for="tag in ticket.tags" :key="tag" type="info">{{ tag }}</el-tag>
             </div>
           </div>
@@ -420,6 +594,100 @@ onBeforeUnmount(clearPreviewImageUrl)
               </div>
             </li>
           </ul>
+        </section>
+
+        <section v-loading="commentsLoading" class="ticket-detail-page__section">
+          <div class="ticket-detail-page__section-heading">
+            <h3>评论</h3>
+            <span>{{ commentsTotal }} 条记录</span>
+          </div>
+          <EmptyState v-if="!comments.length" message="暂无评论" />
+          <ul v-else class="ticket-detail-page__comments">
+            <li
+              v-for="comment in comments"
+              :key="comment.id"
+              :class="{ 'is-internal': comment.commentType === 'INTERNAL' }"
+            >
+              <div class="ticket-detail-page__comment-head">
+                <div>
+                  <strong>{{ comment.authorName || '未知用户' }}</strong>
+                  <span>{{ formatDateTime(comment.createdAt) }}</span>
+                </div>
+                <div class="ticket-detail-page__comment-actions">
+                  <el-tag v-if="comment.commentType === 'INTERNAL'" type="warning">内部备注</el-tag>
+                  <el-button
+                    v-if="canDeleteComment(comment)"
+                    :icon="Delete"
+                    text
+                    type="danger"
+                    @click="removeComment(comment)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+              <p>{{ comment.deleted ? '评论已删除' : comment.content }}</p>
+              <div v-if="comment.attachments?.length" class="ticket-detail-page__comment-files">
+                <el-button
+                  v-for="file in comment.attachments"
+                  :key="file.id"
+                  :icon="Paperclip"
+                  text
+                  type="primary"
+                  @click="file.previewable && !file.downloadOnly ? openPreview(file) : downloadFile(file)"
+                >
+                  {{ file.fileName }}
+                </el-button>
+              </div>
+            </li>
+          </ul>
+          <PaginationBar
+            v-if="commentsTotal > commentsSize"
+            :page="commentsPage"
+            :size="commentsSize"
+            :total="commentsTotal"
+            @update:page="updateCommentsPage"
+            @update:size="updateCommentsSize"
+          />
+
+          <div class="ticket-detail-page__comment-editor">
+            <el-input
+              v-model="commentForm.content"
+              type="textarea"
+              :rows="4"
+              maxlength="5000"
+              show-word-limit
+              placeholder="输入评论内容"
+            />
+            <div class="ticket-detail-page__comment-toolbar">
+              <el-checkbox v-model="commentForm.internal">内部备注</el-checkbox>
+              <el-upload
+                :show-file-list="false"
+                :http-request="uploadCommentAttachment"
+                :disabled="commentUploadLoading"
+              >
+                <el-button :icon="Paperclip" :loading="commentUploadLoading">上传附件</el-button>
+              </el-upload>
+              <el-button
+                :icon="ChatDotRound"
+                type="primary"
+                :loading="commentSubmitting"
+                @click="submitComment"
+              >
+                发布评论
+              </el-button>
+            </div>
+            <div v-if="commentForm.files.length" class="ticket-detail-page__comment-uploaded">
+              <el-tag
+                v-for="file in commentForm.files"
+                :key="file.id"
+                closable
+                @close="removeCommentAttachment(file)"
+              >
+                {{ file.fileName }}
+              </el-tag>
+            </div>
+          </div>
         </section>
 
         <section v-loading="logsLoading" class="ticket-detail-page__section">
@@ -477,12 +745,39 @@ onBeforeUnmount(clearPreviewImageUrl)
       <el-form label-position="top">
         <template v-if="needsTeam">
           <el-form-item label="处理团队">
-            <el-select v-model="actionForm.teamId" clearable filterable placeholder="请选择团队">
+            <el-select
+              v-model="actionForm.teamId"
+              clearable
+              filterable
+              remote
+              reserve-keyword
+              :loading="teamsLoading"
+              placeholder="请选择或搜索团队"
+              :remote-method="loadTeams"
+              @change="handleTeamChange"
+            >
               <el-option v-for="team in teams" :key="team.id" :label="team.name" :value="team.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="处理人 ID（可选）">
-            <el-input v-model="actionForm.assigneeId" placeholder="未指定时由团队成员接单" />
+          <el-form-item label="团队人员列表（可选）">
+            <el-select
+              v-model="actionForm.assigneeId"
+              clearable
+              filterable
+              remote
+              reserve-keyword
+              :disabled="!actionForm.teamId"
+              :loading="teamMembersLoading"
+              placeholder="可按姓名、用户名或手机号搜索"
+              :remote-method="loadTeamMembers"
+            >
+              <el-option
+                v-for="member in teamMembers"
+                :key="member.user.id"
+                :label="memberLabel(member)"
+                :value="member.user.id"
+              />
+            </el-select>
           </el-form-item>
         </template>
         <el-form-item v-if="needsReason || optionalReason || activeAction === 'transfer'" :label="needsReason || activeAction === 'transfer' ? '原因' : '备注（可选）'">
@@ -643,6 +938,80 @@ onBeforeUnmount(clearPreviewImageUrl)
   font-size: 12px;
 }
 
+.ticket-detail-page__comments {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticket-detail-page__comments li {
+  border: 1px solid var(--ops-border-color);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.ticket-detail-page__comments li.is-internal {
+  border-color: #f1d194;
+  background: #fff8e6;
+}
+
+.ticket-detail-page__comment-head,
+.ticket-detail-page__comment-actions,
+.ticket-detail-page__comment-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ticket-detail-page__comment-head {
+  justify-content: space-between;
+}
+
+.ticket-detail-page__comment-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.ticket-detail-page__comment-head span,
+.ticket-detail-page__comments p {
+  color: var(--ops-text-secondary);
+  font-size: 12px;
+}
+
+.ticket-detail-page__comments p {
+  margin: 12px 0 0;
+  color: var(--ops-text-primary);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail-page__comment-files,
+.ticket-detail-page__comment-uploaded {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ticket-detail-page__comment-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  border: 1px solid var(--ops-border-color);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.ticket-detail-page__comment-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ticket-detail-page__aside {
   display: grid;
   gap: 26px;
@@ -760,6 +1129,12 @@ onBeforeUnmount(clearPreviewImageUrl)
 
   .ticket-detail-page__info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-page__comment-head,
+  .ticket-detail-page__comment-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .ticket-detail-page__main,

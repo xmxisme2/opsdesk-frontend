@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { resolveTicketActions, formatTicketDueState } from '../src/utils/ticket-view.ts'
+import { resolveTicketActions, formatTicketDueState, usesTeamMemberPicker } from '../src/utils/ticket-view.ts'
 import type { TicketVO } from '../src/types/ticket.ts'
 import type { UserVO } from '../src/types/user.ts'
 
@@ -62,4 +62,25 @@ test('截止时间展示区分超时、剩余和空值', () => {
   assert.equal(formatTicketDueState(undefined, false, now).label, '-')
   assert.equal(formatTicketDueState('2026-06-22 09:30:00', true, now).label, '已超时 30 分钟')
   assert.equal(formatTicketDueState('2026-06-22 12:00:00', false, now).label, '剩余 2 小时')
+})
+
+test('终态工单不再按截止时间显示 SLA 超时', () => {
+  const now = new Date('2026-06-22T10:00:00')
+
+  assert.equal(formatTicketDueState('2026-06-22 09:30:00', true, 'CLOSED', now).label, '已关闭')
+  assert.equal(formatTicketDueState('2026-06-22 09:30:00', true, 'CANCELLED', now).label, '已取消')
+  assert.equal(formatTicketDueState('2026-06-22 09:30:00', false, 'PENDING_ASSIGN', now).label, '已超时 30 分钟')
+})
+test('assigned USER can accept and transfer pending ticket', () => {
+  assert.deepEqual(
+    resolveTicketActions(ticket({ status: 'PENDING_PROCESS', assigneeId: '1' }), user('1', ['USER'])),
+    ['accept', 'transfer'],
+  )
+})
+
+test('只有分派和转派动作需要加载团队成员列表', () => {
+  assert.equal(usesTeamMemberPicker('assign'), true)
+  assert.equal(usesTeamMemberPicker('transfer'), true)
+  assert.equal(usesTeamMemberPicker('complete'), false)
+  assert.equal(usesTeamMemberPicker('confirm'), false)
 })

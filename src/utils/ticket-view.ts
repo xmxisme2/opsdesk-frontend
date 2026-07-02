@@ -1,9 +1,15 @@
-import type { TicketAction, TicketVO } from '../types/ticket.ts'
+import type { TicketAction, TicketStatus, TicketVO } from '../types/ticket.ts'
 import type { UserVO } from '../types/user.ts'
 
 export interface TicketDueState {
   label: string
   tone: 'normal' | 'warning' | 'danger'
+}
+
+const TERMINAL_SLA_LABELS: Partial<Record<TicketStatus, string>> = {
+  COMPLETED: '已完成',
+  CLOSED: '已关闭',
+  CANCELLED: '已取消',
 }
 
 function roleSet(user: UserVO | null | undefined) {
@@ -12,6 +18,13 @@ function roleSet(user: UserVO | null | undefined) {
 
 function isAgentOrAbove(roles: Set<string>) {
   return roles.has('AGENT') || roles.has('MANAGER') || roles.has('ADMIN')
+}
+
+/**
+ * 判断状态动作弹窗是否需要团队成员选择器；只有分派/转派会查询团队成员，提交完成等处理动作不触发组织接口。
+ */
+export function usesTeamMemberPicker(action: TicketAction) {
+  return action === 'assign' || action === 'transfer'
 }
 
 /**
@@ -46,7 +59,7 @@ export function resolveTicketActions(ticket: TicketVO, currentUser: UserVO | nul
       return actions
     }
     case 'PENDING_PROCESS':
-      return isAgentOrAbove(roles) ? ['accept', 'transfer'] : []
+      return isAssignee || isAgentOrAbove(roles) ? ['accept', 'transfer'] : []
     case 'PROCESSING':
       return isAssignee ? ['transfer', 'reject', 'complete'] : isManager ? ['transfer'] : []
     case 'PENDING_CONFIRM':
@@ -64,8 +77,20 @@ function parseDateTime(value: string) {
 
 /**
  * 将截止时间转换为列表可直接展示的 SLA 文案，避免每个页面重复计算。
+ * 终态工单不再参与 SLA 倒计时，避免历史截止时间导致已关闭、已取消工单继续显示超时。
  */
-export function formatTicketDueState(dueTime?: string, overdue = false, now = new Date()): TicketDueState {
+export function formatTicketDueState(
+  dueTime?: string,
+  overdue = false,
+  statusOrNow: TicketStatus | Date = new Date(),
+  fallbackNow = new Date(),
+): TicketDueState {
+  const status = statusOrNow instanceof Date ? undefined : statusOrNow
+  const now = statusOrNow instanceof Date ? statusOrNow : fallbackNow
+  const terminalLabel = status ? TERMINAL_SLA_LABELS[status] : undefined
+  if (terminalLabel) {
+    return { label: terminalLabel, tone: 'normal' }
+  }
   if (!dueTime) {
     return { label: '-', tone: 'normal' }
   }

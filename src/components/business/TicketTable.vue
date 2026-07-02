@@ -61,8 +61,8 @@ defineEmits<{
         </el-table-column>
         <el-table-column label="SLA" min-width="130">
           <template #default="{ row }">
-            <span :class="`ticket-table__due--${formatTicketDueState(row.dueTime, row.overdue).tone}`">
-              {{ formatTicketDueState(row.dueTime, row.overdue).label }}
+            <span :class="`ticket-table__due--${formatTicketDueState(row.dueTime, row.overdue, row.status).tone}`">
+              {{ formatTicketDueState(row.dueTime, row.overdue, row.status).label }}
             </span>
           </template>
         </el-table-column>
