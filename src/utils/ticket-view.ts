@@ -12,14 +12,6 @@ const TERMINAL_SLA_LABELS: Partial<Record<TicketStatus, string>> = {
   CANCELLED: '已取消',
 }
 
-function roleSet(user: UserVO | null | undefined) {
-  return new Set(user?.roles.map((role) => role.code) ?? [])
-}
-
-function isAgentOrAbove(roles: Set<string>) {
-  return roles.has('AGENT') || roles.has('MANAGER') || roles.has('ADMIN')
-}
-
 /**
  * 判断状态动作弹窗是否需要团队成员选择器；只有分派/转派会查询团队成员，提交完成等处理动作不触发组织接口。
  */
@@ -28,47 +20,11 @@ export function usesTeamMemberPicker(action: TicketAction) {
 }
 
 /**
- * 解析详情页可用动作。后端返回 availableActions 时完全采用后端结果；
- * 当前后端尚未返回该字段时，按已确认状态机做保守兜底，最终仍由后端校验权限。
+ * 解析详情页可用动作。按钮完全以后端 availableActions 为准，避免前端重复实现状态机。
  */
 export function resolveTicketActions(ticket: TicketVO, currentUser: UserVO | null | undefined): TicketAction[] {
-  if (ticket.availableActions?.length) {
-    return [...ticket.availableActions]
-  }
-  if (!currentUser) {
-    return []
-  }
-
-  const roles = roleSet(currentUser)
-  const isCreator = currentUser.id === ticket.creatorId
-  const isAssignee = currentUser.id === ticket.assigneeId
-  const isAdmin = roles.has('ADMIN')
-  const isManager = roles.has('MANAGER') || isAdmin
-
-  switch (ticket.status) {
-    case 'DRAFT':
-      return isCreator ? ['submit', 'cancel'] : []
-    case 'PENDING_ASSIGN': {
-      const actions: TicketAction[] = []
-      if (isManager) {
-        actions.push('assign', 'reject')
-      }
-      if (isCreator || isAdmin) {
-        actions.push('cancel')
-      }
-      return actions
-    }
-    case 'PENDING_PROCESS':
-      return isAssignee || isAgentOrAbove(roles) ? ['accept', 'transfer'] : []
-    case 'PROCESSING':
-      return isAssignee ? ['transfer', 'reject', 'complete'] : isManager ? ['transfer'] : []
-    case 'PENDING_CONFIRM':
-      return isCreator ? ['confirm', 'reopen'] : []
-    case 'COMPLETED':
-      return isCreator || isManager ? ['close'] : []
-    default:
-      return []
-  }
+  void currentUser
+  return ticket.availableActions ? [...ticket.availableActions] : []
 }
 
 function parseDateTime(value: string) {
