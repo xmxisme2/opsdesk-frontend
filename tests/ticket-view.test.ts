@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveTicketActions, formatTicketDueState, usesTeamMemberPicker } from '../src/utils/ticket-view.ts'
 import type { TicketVO } from '../src/types/ticket.ts'
-import type { UserVO } from '../src/types/user.ts'
 
 function ticket(overrides: Partial<TicketVO>): TicketVO {
   return {
@@ -24,37 +23,18 @@ function ticket(overrides: Partial<TicketVO>): TicketVO {
   }
 }
 
-function user(id: string, roles: string[]): UserVO {
-  return {
-    id,
-    nickname: `用户${id}`,
-    phone: `138000000${id}`,
-    roles: roles.map((code, index) => ({ id: String(index + 1), code, name: code })),
-    permissions: [],
-    status: 'ACTIVE',
-  }
-}
-
 test('后端返回 availableActions 时直接采用后端结果', () => {
   const actions = resolveTicketActions(
     ticket({ status: 'PROCESSING', availableActions: ['transfer', 'complete'] }),
-    user('10', ['USER']),
+    undefined,
   )
 
   assert.deepEqual(actions, ['transfer', 'complete'])
 })
 
-test('草稿创建人可提交和取消，其他用户没有动作', () => {
-  assert.deepEqual(resolveTicketActions(ticket({ status: 'DRAFT' }), user('10', ['USER'])), ['submit', 'cancel'])
-  assert.deepEqual(resolveTicketActions(ticket({ status: 'DRAFT' }), user('20', ['USER'])), [])
-})
-
-test('管理员可分派待分派工单，当前处理人可提交完成', () => {
-  assert.deepEqual(resolveTicketActions(ticket({ status: 'PENDING_ASSIGN' }), user('20', ['ADMIN'])), ['assign', 'reject', 'cancel'])
-  assert.deepEqual(
-    resolveTicketActions(ticket({ status: 'PROCESSING', assigneeId: '20' }), user('20', ['AGENT'])),
-    ['transfer', 'reject', 'complete'],
-  )
+test('后端未返回 availableActions 时保守地不展示动作', () => {
+  assert.deepEqual(resolveTicketActions(ticket({ status: 'DRAFT' }), undefined), [])
+  assert.deepEqual(resolveTicketActions(ticket({ status: 'PENDING_ASSIGN' }), undefined), [])
 })
 
 test('截止时间展示区分超时、剩余和空值', () => {
@@ -71,11 +51,11 @@ test('终态工单不再按截止时间显示 SLA 超时', () => {
   assert.equal(formatTicketDueState('2026-06-22 09:30:00', true, 'CANCELLED', now).label, '已取消')
   assert.equal(formatTicketDueState('2026-06-22 09:30:00', false, 'PENDING_ASSIGN', now).label, '已超时 30 分钟')
 })
-test('assigned USER can accept and transfer pending ticket', () => {
-  assert.deepEqual(
-    resolveTicketActions(ticket({ status: 'PENDING_PROCESS', assigneeId: '1' }), user('1', ['USER'])),
-    ['accept', 'transfer'],
-  )
+test('可用动作数组会复制返回，避免页面侧修改后端响应对象', () => {
+  const source = ['accept', 'complete'] as const
+  const actions = resolveTicketActions(ticket({ availableActions: [...source] }), undefined)
+  actions.pop()
+  assert.deepEqual(source, ['accept', 'complete'])
 })
 
 test('只有分派和转派动作需要加载团队成员列表', () => {

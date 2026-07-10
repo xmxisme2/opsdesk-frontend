@@ -733,7 +733,7 @@ onBeforeUnmount(clearPreviewImageUrl)
 
         <el-alert
           :title="`当前状态：${TICKET_STATUS_LABELS[ticket.status]}`"
-          description="按钮按后端 availableActions 展示；字段缺失时使用状态机保守兜底，提交后仍由后端做最终校验。"
+          description="按钮按后端 availableActions 展示；字段缺失时不展示动作，提交后仍由后端做最终校验。"
           type="warning"
           :closable="false"
           show-icon

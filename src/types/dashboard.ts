@@ -23,3 +23,23 @@ export interface DashboardSummary {
   avgProcessDuration: number
   completionRate: number
 }
+
+export interface DashboardTrendPoint {
+  date: string
+  createdCount: number
+  completedCount: number
+  overdueCount: number
+}
+
+export interface DashboardDistributionItem {
+  name: string
+  value: number
+}
+
+export interface DashboardAgentRankingItem {
+  userId: string
+  userName: string
+  completedCount: number
+  avgProcessDuration: number
+  overdueCount: number
+}

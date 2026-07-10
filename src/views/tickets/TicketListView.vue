@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { CirclePlus, Refresh, Search } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getTicketCategoryTree, searchTickets } from '@/api/modules/tickets'
 import { searchTeams } from '@/api/modules/teams'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TicketTable from '@/components/business/TicketTable.vue'
 import { TICKET_PRIORITY_OPTIONS, TICKET_STATUS_OPTIONS } from '@/constants/ticket'
 import { createDebouncedFn } from '@/utils/debounce'
+import { resolveTicketRouteQuery } from '@/utils/ticket-route-query'
 import type { ApiId } from '@/types/api'
 import type { TeamVO } from '@/types/organization'
 import type { TicketCategoryVO, TicketListItemVO, TicketPriority, TicketStatus } from '@/types/ticket'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const error = ref('')
 const records = ref<TicketListItemVO[]>([])
@@ -110,9 +112,25 @@ function editDraft(ticket: TicketListItemVO) {
   router.push({ path: '/tickets/create', query: { id: ticket.id } })
 }
 
+// 看板搜索和外部直达链接通过查询参数传入筛选条件，列表初始化和同页跳转均需同步。
+function syncRouteQuery() {
+  const routeQuery = resolveTicketRouteQuery(route.query)
+  query.page = 1
+  query.ticketNo = routeQuery.ticketNo
+  query.keyword = routeQuery.keyword
+}
+
+watch(
+  () => [route.query.ticketNo, route.query.keyword],
+  () => {
+    syncRouteQuery()
+    loadTickets()
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
   await loadOptions()
-  await loadTickets()
 })
 
 onBeforeUnmount(() => debouncedSearch.cancel())
