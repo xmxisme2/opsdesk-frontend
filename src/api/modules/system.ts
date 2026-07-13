@@ -1,7 +1,7 @@
 import { post } from '@/api/http'
 import type { ApiId } from '@/types/api'
 import type { AiSettings } from '@/types/ai'
-import type { PriorityOption, SlaRuleMutationRequest, SlaRuleVO, UploadPolicy } from '@/types/system'
+import type { NotificationTemplateVO, PriorityOption, SlaRuleMutationRequest, SlaRuleVO, UploadPolicy } from '@/types/system'
 
 // 系统配置 API 负责 SLA、上传、通知和 AI 开关等后台配置，变更必须由后端记录审计日志。
 export function searchSystemConfigs(data: { group?: string; keyword?: string }) {
@@ -26,6 +26,15 @@ export function getUploadPolicy() {
 
 export function updateUploadPolicy(data: UploadPolicy) {
   return post<UploadPolicy>('/system/upload-policy/update', data)
+}
+
+// 通知模板 API 仅维护现有模板，类型与渠道由初始化数据确定，页面不可擅自新增外部发送渠道。
+export function searchNotificationTemplates(data: { type?: string; channel?: string }) {
+  return post<NotificationTemplateVO[]>('/system/notification-templates/search', data)
+}
+
+export function updateNotificationTemplate(id: ApiId, data: Pick<NotificationTemplateVO, 'titleTemplate' | 'contentTemplate' | 'enabled'>) {
+  return post<NotificationTemplateVO>(`/system/notification-templates/${id}/update`, data, { dedupe: 'ignore-current', dedupeKey: `notification-template:${id}:update` })
 }
 
 export function searchSlaRules(data: { categoryId?: ApiId; priority?: string; enabled?: boolean }) {

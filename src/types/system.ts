@@ -9,6 +9,18 @@ export interface UploadPolicy {
   downloadOnlyExtensions: string[]
 }
 
+export interface NotificationTemplateVO {
+  id: ApiId
+  type: 'TICKET_ASSIGNED' | 'TICKET_COMMENTED' | 'TICKET_STATUS_CHANGED' | 'TICKET_OVERDUE' | 'TICKET_CLOSED'
+  channel: 'IN_APP' | 'EMAIL'
+  titleTemplate: string
+  contentTemplate: string
+  enabled: boolean
+  allowedVariables: string[]
+  variableDescriptions: Record<string, string>
+  updatedAt?: string
+}
+
 export interface PriorityOption {
   code: TicketPriority
   name: string

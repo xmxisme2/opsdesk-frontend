@@ -4,8 +4,8 @@ import PageHeader from '@/components/common/PageHeader.vue'
 const router = useRouter()
 const items = [
   { title: 'SLA 规则', description: '分类与优先级响应、解决时限', path: '/system/config/sla-rules', ready: true },
-  { title: '上传限制', description: '文件大小、数量和扩展名策略', path: '/system/config/upload-policy', ready: false },
-  { title: '通知模板', description: '站内通知模板维护', path: '/system/config/notification-templates', ready: false },
+  { title: '上传限制', description: '文件大小、数量和扩展名策略', path: '/system/config/upload-policy', ready: true },
+  { title: '通知模板', description: '站内通知模板维护', path: '/system/config/notification-templates', ready: true },
   { title: 'AI 开关', description: '首版保持关闭，仅保留配置入口', path: '/system/config/ai-settings', ready: false },
 ]
 </script>
