@@ -1,7 +1,7 @@
 import { post } from '@/api/http'
 import type { ApiId } from '@/types/api'
 import type { AiSettings } from '@/types/ai'
-import type { PriorityOption, SlaRuleVO, UploadPolicy } from '@/types/system'
+import type { PriorityOption, SlaRuleMutationRequest, SlaRuleVO, UploadPolicy } from '@/types/system'
 
 // 系统配置 API 负责 SLA、上传、通知和 AI 开关等后台配置，变更必须由后端记录审计日志。
 export function searchSystemConfigs(data: { group?: string; keyword?: string }) {
@@ -30,6 +30,18 @@ export function updateUploadPolicy(data: UploadPolicy) {
 
 export function searchSlaRules(data: { categoryId?: ApiId; priority?: string; enabled?: boolean }) {
   return post<SlaRuleVO[]>('/system/sla-rules/search', data)
+}
+
+export function createSlaRule(data: SlaRuleMutationRequest) {
+  return post<SlaRuleVO>('/system/sla-rules/create', data, { dedupe: 'ignore-current', dedupeKey: 'sla-rules:create' })
+}
+
+export function updateSlaRule(id: ApiId, data: SlaRuleMutationRequest) {
+  return post<SlaRuleVO>(`/system/sla-rules/${id}/update`, data, { dedupe: 'ignore-current', dedupeKey: `sla-rules:${id}:update` })
+}
+
+export function deleteSlaRule(id: ApiId) {
+  return post<Record<string, never>>(`/system/sla-rules/${id}/delete`, undefined, { dedupe: 'ignore-current', dedupeKey: `sla-rules:${id}:delete` })
 }
 
 export function getAiSettings() {

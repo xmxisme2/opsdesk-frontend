@@ -24,4 +24,8 @@ export interface SlaRuleVO {
   responseHours: number
   resolveHours: number
   enabled: boolean
+  createdAt?: string
+  updatedAt?: string
 }
+
+export type SlaRuleMutationRequest = Omit<SlaRuleVO, 'id' | 'createdAt' | 'updatedAt'>

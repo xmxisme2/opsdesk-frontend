@@ -22,9 +22,11 @@ export default defineConfig({
     },
   },
   build: {
+    // 当前 ECharts 独立 vendor chunk 约 558KB；将告警阈值从默认 500KB 翻倍为 1000KB，避免稳定依赖块产生无效告警。
+    chunkSizeWarningLimit: 1000,
     rolldownOptions: {
       output: {
-        // 将体积较大的第三方依赖拆成稳定 vendor chunk，避免 Element Plus 被并入 http 共享块后超过 Vite 默认 500KB 警戒线。
+        // 将体积较大的第三方依赖拆成稳定 vendor chunk，避免 Element Plus 被并入 http 共享块。
         codeSplitting: {
           includeDependenciesRecursively: false,
           groups: [
