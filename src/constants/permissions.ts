@@ -18,6 +18,7 @@ export const APP_MENUS: MenuConfig[] = [
   { title: '知识库', path: '/knowledge', icon: 'Document' },
   { title: 'AI 助手', path: '/ai', icon: 'ChatDotRound', feature: 'ai' },
   { title: '数据看板', path: '/dashboard', icon: 'DataAnalysis', roles: ['MANAGER', 'ADMIN'] },
+  { title: '团队成员管理', path: '/team-management', icon: 'UserFilled', roles: ['MANAGER'] },
   {
     title: '系统管理',
     path: '/system',

@@ -14,6 +14,14 @@ export interface TeamMemberItemRequest {
   leader: boolean
 }
 
+export interface TeamCandidateUserVO {
+  id: ApiId
+  username?: string
+  nickname?: string
+  phone: string
+  departmentName?: string
+}
+
 export interface TeamCreateRequest {
   name: string
   description?: string
@@ -34,6 +42,10 @@ export interface TeamUpdateRequest {
 
 export function searchTeams(data: TeamSearchRequest) {
   return post<PageResult<TeamVO>>('/teams/search', data, { dedupe: 'cancel-previous', dedupeKey: 'teams:search' })
+}
+
+export function searchManagedTeams(data: TeamSearchRequest) {
+  return post<PageResult<TeamVO>>('/teams/managed/search', data, { dedupe: 'cancel-previous', dedupeKey: 'teams:managed' })
 }
 
 export function getTeamDetail(id: ApiId) {
@@ -59,6 +71,12 @@ export function searchTeamMembers(id: ApiId, data: PageRequest & { keyword?: str
   return post<PageResult<TeamMemberVO>>(`/teams/${id}/members/search`, data, {
     dedupe: 'cancel-previous',
     dedupeKey: `teams:${id}:members`,
+  })
+}
+
+export function searchTeamCandidates(id: ApiId, data: PageRequest & { keyword?: string }) {
+  return post<PageResult<TeamCandidateUserVO>>(`/teams/${id}/members/candidates/search`, data, {
+    dedupe: 'cancel-previous', dedupeKey: `teams:${id}:candidates`,
   })
 }
 

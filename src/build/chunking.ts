@@ -144,8 +144,18 @@ export function getVendorChunkName(moduleId: string) {
   if (isPackagePath(normalizedId, 'axios')) {
     return 'vendor-http'
   }
-  if (isPackagePath(normalizedId, 'echarts') || isPackagePath(normalizedId, 'zrender')) {
-    return 'vendor-echarts'
+  // ECharts 已在页面侧按需注册；构建时继续拆开渲染内核、图表和组件，避免再次合并为 500KB 以上单块。
+  if (isPackagePath(normalizedId, 'zrender')) {
+    return 'vendor-zrender'
+  }
+  if (normalizedId.includes(`${NODE_MODULES_SEGMENT}echarts/lib/chart/`)) {
+    return 'vendor-echarts-charts'
+  }
+  if (normalizedId.includes(`${NODE_MODULES_SEGMENT}echarts/lib/component/`)) {
+    return 'vendor-echarts-components'
+  }
+  if (isPackagePath(normalizedId, 'echarts')) {
+    return 'vendor-echarts-core'
   }
 
   return 'vendor-misc'
