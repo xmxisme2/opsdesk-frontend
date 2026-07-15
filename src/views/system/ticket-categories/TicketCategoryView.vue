@@ -163,6 +163,14 @@ async function loadCategories(preferredId?: ApiId) {
   }
 }
 
+// 分类写操作期间禁止重试读取，避免旧请求与保存后的刷新互相覆盖。
+function retryLoadCategories() {
+  if (categoryInteractionLocked.value) {
+    return
+  }
+  void loadCategories()
+}
+
 async function loadTeams() {
   const requestVersion = teamRequestGuard.begin()
   teamLoading.value = true
@@ -316,7 +324,7 @@ onMounted(refreshAll)
         </header>
         <el-input v-model="categoryKeyword" clearable :prefix-icon="Search" :disabled="categoryInteractionLocked" placeholder="搜索分类" />
 
-        <ErrorState v-if="categoryError" :message="categoryError" @retry="loadCategories()" />
+        <ErrorState v-if="categoryError" :message="categoryError" @retry="retryLoadCategories" />
         <el-tree
           v-else
           ref="categoryTreeRef"
@@ -360,10 +368,10 @@ onMounted(refreshAll)
               <h2>{{ currentTitle }}</h2>
               <p>分类默认值会在创建工单时提供分派建议。</p>
             </div>
-            <el-button type="primary" :loading="categorySaving" @click="saveCategory">保存分类</el-button>
+            <el-button type="primary" :loading="categorySaving" :disabled="categoryInteractionLocked" @click="saveCategory">保存分类</el-button>
           </header>
 
-          <el-form ref="categoryFormRef" :model="categoryForm" :rules="categoryRules" label-position="top">
+          <el-form ref="categoryFormRef" :model="categoryForm" :rules="categoryRules" :disabled="categoryInteractionLocked" label-position="top">
             <div class="category-form-grid">
               <el-form-item label="分类名称" prop="name">
                 <el-input v-model="categoryForm.name" maxlength="128" placeholder="请输入分类名称" />
