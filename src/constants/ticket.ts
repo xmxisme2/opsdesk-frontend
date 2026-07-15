@@ -19,6 +19,22 @@ export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
   URGENT: '紧急',
 }
 
+// 内置颜色用于接口未加载或返回坏数据时回退，值仅用于界面展示，不允许作为业务编码提交。
+export const TICKET_PRIORITY_COLORS: Record<TicketPriority, string> = {
+  LOW: '#64748B',
+  MEDIUM: '#2563EB',
+  HIGH: '#D97706',
+  URGENT: '#DC2626',
+}
+
+// 内置排序保证远端缺项时仍能稳定生成完整的四级优先级字典。
+export const TICKET_PRIORITY_SORTS: Record<TicketPriority, number> = {
+  LOW: 10,
+  MEDIUM: 20,
+  HIGH: 30,
+  URGENT: 40,
+}
+
 export const TICKET_STATUS_OPTIONS: OptionItem[] = Object.entries(TICKET_STATUS_LABELS).map(([value, label]) => ({
   label,
   value,
