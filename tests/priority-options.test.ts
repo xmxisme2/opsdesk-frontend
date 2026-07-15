@@ -7,6 +7,7 @@ import {
   normalizePriorityOptions,
   priorityDisplay,
   priorityTagStyle,
+  validatePriorityConfiguration,
 } from '../src/utils/priority-options.ts'
 
 test('按排序返回启用优先级并保留历史显示配置', () => {
@@ -81,4 +82,21 @@ test('加载中的 force 结果不会被晚返回的旧请求覆盖', async () =
 
   const finalResult = await initialRequest
   assert.equal(priorityDisplay(finalResult.options, 'HIGH').name, '最新高')
+})
+
+test('管理配置校验颜色、排序、启用项和 MEDIUM 规则', () => {
+  const valid = normalizePriorityOptions([])
+  assert.deepEqual(validatePriorityConfiguration(valid), [])
+
+  const invalid = valid.map((item) => ({ ...item }))
+  invalid[0].color = 'red'
+  invalid[1].enabled = false
+  invalid[2].sort = invalid[3].sort
+  invalid[3].enabled = false
+
+  assert.deepEqual(validatePriorityConfiguration(invalid), [
+    'LOW 的颜色必须为六位十六进制色值',
+    '优先级排序值不能重复',
+    'MEDIUM 必须保持启用',
+  ])
 })

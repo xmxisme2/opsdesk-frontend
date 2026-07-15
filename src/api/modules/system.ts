@@ -13,11 +13,17 @@ export function updateSystemConfig(key: string, value: string, reason?: string) 
 }
 
 export function getPriorityOptions() {
-  return post<PriorityOption[]>('/system/priorities/options')
+  return post<PriorityOption[]>('/system/priorities/options', undefined, {
+    dedupe: 'cancel-previous',
+    dedupeKey: 'system:priorities:options',
+  })
 }
 
 export function updatePriorityOptions(items: PriorityOption[]) {
-  return post<{ items: PriorityOption[] }>('/system/priorities/update', { items })
+  return post<PriorityOption[]>('/system/priorities/update', { items }, {
+    dedupe: 'ignore-current',
+    dedupeKey: 'system:priorities:update',
+  })
 }
 
 export function getUploadPolicy() {

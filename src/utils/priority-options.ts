@@ -110,3 +110,26 @@ export function priorityTagStyle(option: PriorityOption): Record<'--priority-col
   const color = SAFE_COLOR_PATTERN.test(option.color) ? option.color : TICKET_PRIORITY_COLORS[option.code]
   return { '--priority-color': color }
 }
+
+// 管理页保存前执行与后端一致的整组约束，错误数组可直接回显给管理员。
+export function validatePriorityConfiguration(items: readonly PriorityOption[]): string[] {
+  const errors: string[] = []
+  for (const item of items) {
+    if (!item.name.trim()) {
+      errors.push(`${item.code} 的名称不能为空`)
+    }
+    if (!SAFE_COLOR_PATTERN.test(item.color)) {
+      errors.push(`${item.code} 的颜色必须为六位十六进制色值`)
+    }
+  }
+  if (new Set(items.map((item) => item.sort)).size !== items.length) {
+    errors.push('优先级排序值不能重复')
+  }
+  if (!items.some((item) => item.enabled)) {
+    errors.push('至少需要启用一个优先级')
+  }
+  if (!items.find((item) => item.code === 'MEDIUM')?.enabled) {
+    errors.push('MEDIUM 必须保持启用')
+  }
+  return errors
+}
