@@ -13,7 +13,7 @@ test('getVendorChunkName 按依赖职责拆分 vendor chunk', () => {
   assert.equal(getVendorChunkName('/repo/node_modules/element-plus/es/index.mjs'), 'vendor-element-core')
   assert.equal(getVendorChunkName('/repo/node_modules/@vueuse/core/dist/index.js'), 'vendor-element-utils')
   assert.equal(getVendorChunkName('/repo/node_modules/axios/index.js'), 'vendor-http')
-  assert.equal(getVendorChunkName('/repo/node_modules/echarts/core.js'), 'vendor-echarts')
+  assert.equal(getVendorChunkName('/repo/node_modules/echarts/core.js'), 'vendor-echarts-core')
 })
 
 test('isVendorChunkCandidate 只处理 node_modules 依赖', () => {

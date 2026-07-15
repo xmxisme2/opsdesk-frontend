@@ -39,6 +39,16 @@ export interface TicketCreateRequest extends TicketMutationRequest {
   submitNow: boolean
 }
 
+// 分类写请求固定为后端契约字段，页面不得透传树节点的展示属性。
+export interface TicketCategoryMutationRequest {
+  name: string
+  parentId?: ApiId
+  defaultTeamId?: ApiId
+  defaultSlaHours?: number
+  sort: number
+  enabled: boolean
+}
+
 export interface TicketAssignRequest {
   teamId?: ApiId
   assigneeId?: ApiId
@@ -56,6 +66,27 @@ export function getTicketCategoryTree(data: { enabled?: boolean; keyword?: strin
   return post<TicketCategoryVO[]>('/ticket-categories/tree', data, {
     dedupe: 'cancel-previous',
     dedupeKey: 'ticket-categories:tree',
+  })
+}
+
+export function createTicketCategory(data: TicketCategoryMutationRequest) {
+  return post<TicketCategoryVO>('/ticket-categories/create', data, {
+    dedupe: 'ignore-current',
+    dedupeKey: 'ticket-categories:create',
+  })
+}
+
+export function updateTicketCategory(id: ApiId, data: TicketCategoryMutationRequest) {
+  return post<TicketCategoryVO>(`/ticket-categories/${id}/update`, data, {
+    dedupe: 'ignore-current',
+    dedupeKey: `ticket-categories:${id}:update`,
+  })
+}
+
+export function deleteTicketCategory(id: ApiId) {
+  return post<void>(`/ticket-categories/${id}/delete`, undefined, {
+    dedupe: 'ignore-current',
+    dedupeKey: `ticket-categories:${id}:delete`,
   })
 }
 

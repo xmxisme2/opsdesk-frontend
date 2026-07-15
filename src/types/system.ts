@@ -26,7 +26,7 @@ export interface PriorityOption {
   name: string
   sort: number
   color: string
-  enabled?: boolean
+  enabled: boolean
 }
 
 export interface SlaRuleVO {

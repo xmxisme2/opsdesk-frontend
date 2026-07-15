@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ArrowLeft, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadFiles, type UploadUserFile } from 'element-plus'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import {
   createTicket,
@@ -13,7 +14,8 @@ import {
 } from '@/api/modules/tickets'
 import { uploadFile } from '@/api/modules/files'
 import PageHeader from '@/components/common/PageHeader.vue'
-import { TICKET_PRIORITY_OPTIONS } from '@/constants/ticket'
+import { useDictionariesStore } from '@/stores/modules/dictionaries'
+import { selectablePriorityOptions } from '@/utils/priority-options'
 import type { ApiId } from '@/types/api'
 import type { TicketCategoryVO, TicketPriority, TicketVO } from '@/types/ticket'
 
@@ -32,6 +34,8 @@ const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'pdf', 'docx', 'xlsx',
 
 const route = useRoute()
 const router = useRouter()
+const dictionariesStore = useDictionariesStore()
+const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const formRef = ref<FormInstance>()
 const categories = ref<TicketCategoryVO[]>([])
 const fileList = ref<UploadUserFile[]>([])
@@ -52,6 +56,8 @@ const form = reactive<TicketFormModel>({
   dueTime: '',
   tags: [],
 })
+// 编辑草稿时允许回显当前已停用优先级，但停用项不可重新选择。
+const priorityOptions = computed(() => selectablePriorityOptions(ticketPriorityOptions.value, isEditing.value ? form.priority : undefined))
 
 const rules: FormRules<TicketFormModel> = {
   title: [
@@ -66,7 +72,11 @@ const rules: FormRules<TicketFormModel> = {
 async function loadPage() {
   loading.value = true
   try {
-    categories.value = await getTicketCategoryTree({ enabled: true })
+    const [categoryResult] = await Promise.all([
+      getTicketCategoryTree({ enabled: true }),
+      dictionariesStore.loadTicketPriorities(),
+    ])
+    categories.value = categoryResult
     if (draftId.value) {
       const ticket = await getTicketDetail(draftId.value)
       if (ticket.status !== 'DRAFT') {
@@ -197,7 +207,7 @@ onMounted(loadPage)
             </el-form-item>
             <el-form-item label="优先级" prop="priority">
               <el-select v-model="form.priority">
-                <el-option v-for="item in TICKET_PRIORITY_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+                <el-option v-for="item in priorityOptions" :key="item.code" :label="item.name" :value="item.code" :disabled="!item.enabled" />
               </el-select>
             </el-form-item>
             <el-form-item label="期望完成时间">
