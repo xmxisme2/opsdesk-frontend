@@ -2,10 +2,14 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { CirclePlus, Delete, Edit, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { storeToRefs } from 'pinia'
 import { createSlaRule, deleteSlaRule, searchSlaRules, updateSlaRule } from '@/api/modules/system'
 import { getTicketCategoryTree } from '@/api/modules/tickets'
 import DataTable from '@/components/common/DataTable.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
+import PriorityTag from '@/components/business/PriorityTag.vue'
+import { useDictionariesStore } from '@/stores/modules/dictionaries'
+import { enabledPriorityOptions, priorityDisplay, selectablePriorityOptions } from '@/utils/priority-options'
 import type { ApiId } from '@/types/api'
 import type { SlaRuleMutationRequest, SlaRuleVO } from '@/types/system'
 import type { TicketCategoryVO, TicketPriority } from '@/types/ticket'
@@ -22,10 +26,11 @@ const rules = ref<SlaRuleVO[]>([])
 const categories = ref<TicketCategoryVO[]>([])
 const filter = reactive<{ categoryId?: ApiId; priority?: TicketPriority; enabled?: boolean }>({})
 const form = reactive<SlaForm>({ categoryId: '', priority: 'MEDIUM', responseHours: 4, resolveHours: 24, enabled: true })
-
-const priorityOptions: { label: string; value: TicketPriority }[] = [
-  { label: '低', value: 'LOW' }, { label: '中', value: 'MEDIUM' }, { label: '高', value: 'HIGH' }, { label: '紧急', value: 'URGENT' },
-]
+const dictionariesStore = useDictionariesStore()
+const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
+const filterPriorityOptions = computed(() => enabledPriorityOptions(ticketPriorityOptions.value))
+// 编辑旧规则时保留当前停用优先级用于回显，但不允许新增规则选择停用项。
+const priorityOptions = computed(() => selectablePriorityOptions(ticketPriorityOptions.value, dialogVisible.value ? form.priority : undefined))
 const categoryOptions = computed(() => buildCategoryOptions(categories.value))
 const formRules: FormRules<SlaForm> = {
   categoryId: [{ required: true, message: '请选择适用分类', trigger: 'change' }],
@@ -48,7 +53,7 @@ async function loadRules() {
 async function loadCategories() { categories.value = await getTicketCategoryTree({ enabled: true }) }
 function buildCategoryOptions(items: TicketCategoryVO[]): CategoryOption[] { return items.map(item => ({ label: item.name, value: item.id, children: item.children?.length ? buildCategoryOptions(item.children) : undefined })) }
 function categoryName(id: ApiId) { const find = (items: TicketCategoryVO[]): string | undefined => { for (const item of items) { if (item.id === id) return item.name; const child = item.children ? find(item.children) : undefined; if (child) return child } }; return find(categories.value) || id }
-function priorityName(priority: TicketPriority) { return priorityOptions.find(item => item.value === priority)?.label || priority }
+function priorityName(priority: TicketPriority) { return priorityDisplay(ticketPriorityOptions.value, priority).name }
 
 function openCreate() { Object.assign(form, { id: undefined, categoryId: '', priority: 'MEDIUM', responseHours: 4, resolveHours: 24, enabled: true }); dialogVisible.value = true; nextTick(() => formRef.value?.clearValidate()) }
 function openEdit(row: SlaRuleVO) { Object.assign(form, row); dialogVisible.value = true; nextTick(() => formRef.value?.clearValidate()) }
@@ -73,7 +78,7 @@ async function disableRule(row: SlaRuleVO) {
 }
 
 function resetFilter() { filter.categoryId = undefined; filter.priority = undefined; filter.enabled = undefined; loadRules() }
-onMounted(() => Promise.allSettled([loadCategories(), loadRules()]))
+onMounted(() => Promise.allSettled([loadCategories(), loadRules(), dictionariesStore.loadTicketPriorities()]))
 </script>
 
 <template>
@@ -84,14 +89,14 @@ onMounted(() => Promise.allSettled([loadCategories(), loadRules()]))
     </PageHeader>
     <section class="page-panel sla-filters">
       <el-select v-model="filter.categoryId" clearable placeholder="全部分类" @change="loadRules"><el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
-      <el-select v-model="filter.priority" clearable placeholder="全部优先级" @change="loadRules"><el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
+      <el-select v-model="filter.priority" clearable placeholder="全部优先级" @change="loadRules"><el-option v-for="item in filterPriorityOptions" :key="item.code" :label="item.name" :value="item.code" /></el-select>
       <el-select v-model="filter.enabled" clearable placeholder="全部状态" @change="loadRules"><el-option label="启用" :value="true" /><el-option label="禁用" :value="false" /></el-select>
       <el-button @click="resetFilter">重置</el-button>
     </section>
     <DataTable :loading="loading" :error="errorMessage" :empty="rules.length === 0" @retry="loadRules">
       <el-table :data="rules" row-key="id">
         <el-table-column label="适用分类" min-width="180"><template #default="{ row }: { row: SlaRuleVO }">{{ categoryName(row.categoryId) }}</template></el-table-column>
-        <el-table-column label="优先级" width="110"><template #default="{ row }: { row: SlaRuleVO }"><el-tag>{{ priorityName(row.priority) }}</el-tag></template></el-table-column>
+        <el-table-column label="优先级" width="110"><template #default="{ row }: { row: SlaRuleVO }"><PriorityTag :priority="row.priority" /></template></el-table-column>
         <el-table-column label="响应时限" min-width="130"><template #default="{ row }: { row: SlaRuleVO }">{{ row.responseHours }} 小时</template></el-table-column>
         <el-table-column label="解决时限" min-width="130"><template #default="{ row }: { row: SlaRuleVO }">{{ row.resolveHours }} 小时</template></el-table-column>
         <el-table-column label="状态" width="100"><template #default="{ row }: { row: SlaRuleVO }"><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '禁用' }}</el-tag></template></el-table-column>
@@ -102,7 +107,7 @@ onMounted(() => Promise.allSettled([loadCategories(), loadRules()]))
       <el-form ref="formRef" :model="form" :rules="formRules" label-position="top">
         <div class="sla-form-grid">
           <el-form-item label="适用分类" prop="categoryId"><el-tree-select v-model="form.categoryId" :data="categoryOptions" check-strictly filterable node-key="value" placeholder="请选择分类" /></el-form-item>
-          <el-form-item label="优先级" prop="priority"><el-select v-model="form.priority"><el-option v-for="item in priorityOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select></el-form-item>
+          <el-form-item label="优先级" prop="priority"><el-select v-model="form.priority"><el-option v-for="item in priorityOptions" :key="item.code" :label="item.name" :value="item.code" :disabled="!item.enabled" /></el-select></el-form-item>
           <el-form-item label="响应时限（小时）" prop="responseHours"><el-input-number v-model="form.responseHours" :min="1" :max="8760" /></el-form-item>
           <el-form-item label="解决时限（小时）" prop="resolveHours"><el-input-number v-model="form.resolveHours" :min="1" :max="8760" /></el-form-item>
         </div>

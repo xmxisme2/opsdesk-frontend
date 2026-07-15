@@ -54,6 +54,19 @@ export function enabledPriorityOptions(items: readonly PriorityOption[]): Priori
   return items.filter((item) => item.enabled)
 }
 
+// 编辑草稿或既有规则时保留当前已停用项用于回显；新增场景仍只暴露启用项。
+export function selectablePriorityOptions(
+  items: readonly PriorityOption[],
+  current?: TicketPriority,
+): PriorityOption[] {
+  const enabled = enabledPriorityOptions(items)
+  if (!current || enabled.some((item) => item.code === current)) {
+    return enabled
+  }
+  const historical = items.find((item) => item.code === current)
+  return historical ? [...enabled, historical].sort((left, right) => left.sort - right.sort) : enabled
+}
+
 // 展示始终经过归一化，避免调用方传入残缺数组后出现空名称或不安全颜色。
 export function priorityDisplay(items: readonly PriorityOption[], code: TicketPriority): PriorityOption {
   return normalizePriorityOptions(items).find((item) => item.code === code)!

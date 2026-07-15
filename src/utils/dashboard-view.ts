@@ -1,4 +1,5 @@
 import type { DashboardDistributionItem, DashboardSummary } from '@/types/dashboard'
+import type { PriorityOption } from '@/types/system'
 
 export interface DashboardMetricItem {
   key: keyof DashboardSummary
@@ -7,15 +8,6 @@ export interface DashboardMetricItem {
   helper: string
   tone: 'primary' | 'warning' | 'success' | 'danger'
 }
-
-const PRIORITY_LABELS: Record<string, string> = {
-  URGENT: '紧急',
-  HIGH: '高',
-  MEDIUM: '中',
-  LOW: '低',
-}
-
-const PRIORITY_ORDER = ['URGENT', 'HIGH', 'MEDIUM', 'LOW']
 
 // 数据看板指标映射集中维护，避免页面模板里散落统计字段含义。
 export function buildDashboardMetrics(summary: DashboardSummary): DashboardMetricItem[] {
@@ -51,13 +43,18 @@ export function buildDashboardMetrics(summary: DashboardSummary): DashboardMetri
   ]
 }
 
-export function normalizePriorityDistribution(items: DashboardDistributionItem[]) {
+// 优先级分布使用管理员配置的名称、颜色和排序；停用项仍保留历史统计展示。
+export function normalizePriorityDistribution(
+  items: DashboardDistributionItem[],
+  priorityOptions: readonly PriorityOption[],
+) {
   const valueMap = new Map(items.map((item) => [item.name, item.value]))
   const maxValue = Math.max(...items.map((item) => item.value), 1)
-  return PRIORITY_ORDER.map((priority) => ({
-    name: priority,
-    label: PRIORITY_LABELS[priority],
-    value: valueMap.get(priority) ?? 0,
-    percent: Math.max(8, Math.round(((valueMap.get(priority) ?? 0) / maxValue) * 100)),
+  return priorityOptions.map((priority) => ({
+    name: priority.code,
+    label: priority.name,
+    color: priority.color,
+    value: valueMap.get(priority.code) ?? 0,
+    percent: Math.max(8, Math.round(((valueMap.get(priority.code) ?? 0) / maxValue) * 100)),
   }))
 }

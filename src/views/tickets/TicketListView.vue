@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { CirclePlus, Refresh, Search } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { getTicketCategoryTree, searchTickets } from '@/api/modules/tickets'
 import { searchTeams } from '@/api/modules/teams'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TicketTable from '@/components/business/TicketTable.vue'
-import { TICKET_PRIORITY_OPTIONS, TICKET_STATUS_OPTIONS } from '@/constants/ticket'
+import { TICKET_STATUS_OPTIONS } from '@/constants/ticket'
+import { useDictionariesStore } from '@/stores/modules/dictionaries'
+import { enabledPriorityOptions } from '@/utils/priority-options'
 import { createDebouncedFn } from '@/utils/debounce'
 import { resolveTicketRouteQuery } from '@/utils/ticket-route-query'
 import type { ApiId } from '@/types/api'
@@ -15,12 +18,15 @@ import type { TicketCategoryVO, TicketListItemVO, TicketPriority, TicketStatus }
 
 const router = useRouter()
 const route = useRoute()
+const dictionariesStore = useDictionariesStore()
+const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const loading = ref(false)
 const error = ref('')
 const records = ref<TicketListItemVO[]>([])
 const total = ref(0)
 const categories = ref<TicketCategoryVO[]>([])
 const teams = ref<TeamVO[]>([])
+const priorityOptions = computed(() => enabledPriorityOptions(ticketPriorityOptions.value))
 
 const query = reactive({
   page: 1,
@@ -38,6 +44,7 @@ async function loadOptions() {
   const [categoryResult, teamResult] = await Promise.allSettled([
     getTicketCategoryTree({ enabled: true }),
     searchTeams({ page: 1, size: 100, enabled: true }),
+    dictionariesStore.loadTicketPriorities(),
   ])
   if (categoryResult.status === 'fulfilled') {
     categories.value = categoryResult.value
@@ -161,7 +168,7 @@ onBeforeUnmount(() => debouncedSearch.cancel())
           </el-form-item>
           <el-form-item label="优先级">
             <el-select v-model="query.priority" clearable placeholder="全部优先级" @change="searchFromFirstPage">
-              <el-option v-for="item in TICKET_PRIORITY_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+              <el-option v-for="item in priorityOptions" :key="item.code" :label="item.name" :value="item.code" />
             </el-select>
           </el-form-item>
           <el-form-item label="分类">

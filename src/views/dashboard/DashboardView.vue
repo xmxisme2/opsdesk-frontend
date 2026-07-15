@@ -5,6 +5,7 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import { init, use, type ECharts } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { Refresh, Search } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import {
   getAgentRanking,
@@ -19,6 +20,7 @@ import ErrorState from '@/components/feedback/ErrorState.vue'
 import PriorityTag from '@/components/business/PriorityTag.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
+import { useDictionariesStore } from '@/stores/modules/dictionaries'
 import { buildDashboardMetrics, normalizePriorityDistribution } from '@/utils/dashboard-view'
 import { formatDateTime } from '@/utils/format-date'
 import type {
@@ -31,6 +33,8 @@ import type { PageResult } from '@/types/api'
 import type { TicketListItemVO } from '@/types/ticket'
 
 const router = useRouter()
+const dictionariesStore = useDictionariesStore()
+const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const loading = ref(false)
 const error = ref('')
 const keyword = ref('')
@@ -48,7 +52,7 @@ let trendChart: ECharts | null = null
 use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 const metrics = computed(() => (summary.value ? buildDashboardMetrics(summary.value) : []))
-const priorityBars = computed(() => normalizePriorityDistribution(priorityItems.value))
+const priorityBars = computed(() => normalizePriorityDistribution(priorityItems.value, ticketPriorityOptions.value))
 
 const rangeParams = computed(() => ({
   dateFrom: dateRange.value?.[0],
@@ -138,6 +142,7 @@ watch(dateRange, () => {
 })
 
 onMounted(() => {
+  void dictionariesStore.loadTicketPriorities()
   loadDashboard()
   window.addEventListener('resize', handleResize)
 })
@@ -207,7 +212,7 @@ onBeforeUnmount(() => {
             <div v-for="item in priorityBars" :key="item.name" class="dashboard-page__priority-row">
               <span>{{ item.label }}</span>
               <div class="dashboard-page__priority-track">
-                <i :class="`is-${item.name.toLowerCase()}`" :style="{ width: `${item.percent}%` }" />
+                <i :style="{ width: `${item.percent}%`, backgroundColor: item.color }" />
               </div>
               <strong>{{ item.value }}</strong>
             </div>

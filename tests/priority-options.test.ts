@@ -7,6 +7,7 @@ import {
   normalizePriorityOptions,
   priorityDisplay,
   priorityTagStyle,
+  selectablePriorityOptions,
   validatePriorityConfiguration,
 } from '../src/utils/priority-options.ts'
 
@@ -19,6 +20,20 @@ test('按排序返回启用优先级并保留历史显示配置', () => {
   assert.deepEqual(enabledPriorityOptions(normalized).map((item) => item.code), ['LOW', 'MEDIUM', 'URGENT'])
   assert.equal(priorityDisplay(normalized, 'HIGH').name, '高优先')
   assert.equal(priorityDisplay(normalized, 'HIGH').color, '#BA630F')
+})
+
+test('编辑历史数据时保留当前停用优先级但禁止重新选择', () => {
+  const normalized = normalizePriorityOptions([
+    { code: 'HIGH', name: '高优先', sort: 30, color: '#BA630F', enabled: false },
+  ])
+
+  const createOptions = selectablePriorityOptions(normalized)
+  const editOptions = selectablePriorityOptions(normalized, 'HIGH')
+
+  assert.equal(createOptions.some((item) => item.code === 'HIGH'), false)
+  assert.deepEqual(editOptions.find((item) => item.code === 'HIGH'), {
+    code: 'HIGH', name: '高优先', sort: 30, color: '#BA630F', enabled: false,
+  })
 })
 
 test('忽略未知编码并用内置值防御坏名称、颜色和排序', () => {
