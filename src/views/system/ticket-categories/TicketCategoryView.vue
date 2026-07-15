@@ -11,6 +11,7 @@ import {
 } from '@/api/modules/tickets'
 import { getPriorityOptions, updatePriorityOptions } from '@/api/modules/system'
 import { searchTeams } from '@/api/modules/teams'
+import { isRequestCanceled } from '@/api/http'
 import PageHeader from '@/components/common/PageHeader.vue'
 import ErrorState from '@/components/feedback/ErrorState.vue'
 import { useDictionariesStore } from '@/stores/modules/dictionaries'
@@ -19,6 +20,7 @@ import type { TeamVO } from '@/types/organization'
 import type { PriorityOption } from '@/types/system'
 import type { TicketCategoryVO } from '@/types/ticket'
 import { excludeCategoryBranch } from '@/utils/ticket-category-tree'
+import { createLatestRequestGuard } from '@/utils/latest-request'
 import { normalizePriorityOptions, validatePriorityConfiguration } from '@/utils/priority-options'
 
 type CategoryFormModel = TicketCategoryMutationRequest & { id?: ApiId }
@@ -40,6 +42,9 @@ const teamError = ref('')
 const priorityLoading = ref(false)
 const prioritySaving = ref(false)
 const priorityError = ref('')
+const categoryRequestGuard = createLatestRequestGuard()
+const teamRequestGuard = createLatestRequestGuard()
+const priorityRequestGuard = createLatestRequestGuard()
 
 const categoryForm = reactive<CategoryFormModel>({
   id: undefined,
@@ -61,6 +66,7 @@ const categoryRules: FormRules<CategoryFormModel> = {
 
 const parentCategoryTree = computed(() => excludeCategoryBranch(categories.value, categoryForm.id))
 const currentTitle = computed(() => categoryForm.id ? categoryForm.name || '编辑分类' : '新增分类')
+const categoryInteractionLocked = computed(() => categorySaving.value || categoryDeleting.value)
 
 watch(categoryKeyword, (value) => categoryTreeRef.value?.filter(value.trim()))
 
@@ -88,15 +94,24 @@ function fillCategoryForm(category?: TicketCategoryVO, parentId?: ApiId) {
 }
 
 function selectCategory(category: TicketCategoryVO) {
+  if (categoryInteractionLocked.value) {
+    return
+  }
   fillCategoryForm(category)
 }
 
 function addRootCategory() {
+  if (categoryInteractionLocked.value) {
+    return
+  }
   categoryTreeRef.value?.setCurrentKey(undefined)
   fillCategoryForm()
 }
 
 function addChildCategory() {
+  if (categoryInteractionLocked.value) {
+    return
+  }
   if (!selectedCategory.value?.id) {
     ElMessage.warning('请先选择父级分类')
     return
@@ -108,12 +123,20 @@ function addChildCategory() {
 
 // 分类树刷新后尽量保留当前选择，删除或首次加载时回落到第一项。
 async function loadCategories(preferredId?: ApiId) {
+  const requestVersion = categoryRequestGuard.begin()
   categoryLoading.value = true
   categoryError.value = ''
   try {
-    categories.value = await getTicketCategoryTree({ enabled: undefined })
+    const result = await getTicketCategoryTree({ enabled: undefined })
+    if (!categoryRequestGuard.isLatest(requestVersion)) {
+      return
+    }
+    categories.value = result
     const targetId = preferredId ?? selectedCategory.value?.id
     await nextTick()
+    if (!categoryRequestGuard.isLatest(requestVersion)) {
+      return
+    }
     if (targetId) {
       categoryTreeRef.value?.setCurrentKey(targetId)
       const target = categoryTreeRef.value?.getNode(targetId)?.data as TicketCategoryVO | undefined
@@ -130,47 +153,73 @@ async function loadCategories(preferredId?: ApiId) {
       fillCategoryForm()
     }
   } catch (error) {
-    categoryError.value = errorText(error, '分类树加载失败')
+    if (categoryRequestGuard.isLatest(requestVersion) && !isRequestCanceled(error)) {
+      categoryError.value = errorText(error, '分类树加载失败')
+    }
   } finally {
-    categoryLoading.value = false
+    if (categoryRequestGuard.isLatest(requestVersion)) {
+      categoryLoading.value = false
+    }
   }
 }
 
 async function loadTeams() {
+  const requestVersion = teamRequestGuard.begin()
   teamLoading.value = true
   teamError.value = ''
   try {
     const result = await searchTeams({ page: 1, size: 100, enabled: true })
-    teams.value = result.records
+    if (teamRequestGuard.isLatest(requestVersion)) {
+      teams.value = result.records
+    }
   } catch (error) {
-    teamError.value = errorText(error, '启用团队加载失败')
+    if (teamRequestGuard.isLatest(requestVersion) && !isRequestCanceled(error)) {
+      teamError.value = errorText(error, '启用团队加载失败')
+    }
   } finally {
-    teamLoading.value = false
+    if (teamRequestGuard.isLatest(requestVersion)) {
+      teamLoading.value = false
+    }
   }
 }
 
 async function loadPriorities() {
+  const requestVersion = priorityRequestGuard.begin()
   priorityLoading.value = true
   priorityError.value = ''
   try {
     const items = normalizePriorityOptions(await getPriorityOptions())
+    if (!priorityRequestGuard.isLatest(requestVersion)) {
+      return
+    }
     priorityForm.items.splice(0, priorityForm.items.length, ...items.map((item) => ({ ...item })))
     await nextTick()
-    priorityFormRef.value?.clearValidate()
+    if (priorityRequestGuard.isLatest(requestVersion)) {
+      priorityFormRef.value?.clearValidate()
+    }
   } catch (error) {
-    priorityError.value = errorText(error, '优先级配置加载失败')
+    if (priorityRequestGuard.isLatest(requestVersion) && !isRequestCanceled(error)) {
+      priorityError.value = errorText(error, '优先级配置加载失败')
+    }
   } finally {
-    priorityLoading.value = false
+    if (priorityRequestGuard.isLatest(requestVersion)) {
+      priorityLoading.value = false
+    }
   }
 }
 
 async function saveCategory() {
-  const valid = await categoryFormRef.value?.validate().catch(() => false)
-  if (!valid) {
+  if (categoryInteractionLocked.value) {
     return
   }
   categorySaving.value = true
   try {
+    const valid = await categoryFormRef.value?.validate().catch(() => false)
+    if (!valid) {
+      return
+    }
+    const submittedMode = categoryForm.id ? 'update' : 'create'
+    const submittedId = categoryForm.id
     const payload: TicketCategoryMutationRequest = {
       name: categoryForm.name.trim(),
       parentId: categoryForm.parentId,
@@ -179,10 +228,10 @@ async function saveCategory() {
       sort: categoryForm.sort,
       enabled: categoryForm.enabled,
     }
-    const saved = categoryForm.id
-      ? await updateTicketCategory(categoryForm.id, payload)
+    const saved = submittedMode === 'update' && submittedId
+      ? await updateTicketCategory(submittedId, payload)
       : await createTicketCategory(payload)
-    ElMessage.success(categoryForm.id ? '分类已保存' : '分类已创建')
+    ElMessage.success(submittedMode === 'update' ? '分类已保存' : '分类已创建')
     await loadCategories(saved.id)
   } finally {
     categorySaving.value = false
@@ -190,16 +239,23 @@ async function saveCategory() {
 }
 
 async function confirmDeleteCategory() {
+  if (categoryInteractionLocked.value) {
+    return
+  }
   const category = selectedCategory.value
   if (!category?.id) {
     ElMessage.warning('请选择要删除的分类')
     return
   }
-  await ElMessageBox.confirm(`确认删除分类“${category.name}”？存在子分类或关联工单时后端会阻止删除。`, '删除分类', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning',
-  })
+  try {
+    await ElMessageBox.confirm(`确认删除分类“${category.name}”？存在子分类或关联工单时后端会阻止删除。`, '删除分类', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
   categoryDeleting.value = true
   try {
     await deleteTicketCategory(category.id)
@@ -248,7 +304,7 @@ onMounted(refreshAll)
   <section class="page-stack category-config-page">
     <PageHeader title="工单分类与优先级配置" description="分类树、默认团队、默认 SLA、优先级枚举和启停">
       <template #actions>
-        <el-button :icon="Refresh" @click="refreshAll">刷新</el-button>
+        <el-button :icon="Refresh" :disabled="categoryInteractionLocked" @click="refreshAll">刷新</el-button>
       </template>
     </PageHeader>
 
@@ -256,9 +312,9 @@ onMounted(refreshAll)
       <aside class="page-panel category-tree-panel">
         <header class="panel-heading">
           <h2>分类树</h2>
-          <el-button text type="primary" :icon="CirclePlus" @click="addRootCategory">根分类</el-button>
+          <el-button text type="primary" :icon="CirclePlus" :disabled="categoryInteractionLocked" @click="addRootCategory">根分类</el-button>
         </header>
-        <el-input v-model="categoryKeyword" clearable :prefix-icon="Search" placeholder="搜索分类" />
+        <el-input v-model="categoryKeyword" clearable :prefix-icon="Search" :disabled="categoryInteractionLocked" placeholder="搜索分类" />
 
         <ErrorState v-if="categoryError" :message="categoryError" @retry="loadCategories()" />
         <el-tree
@@ -266,6 +322,7 @@ onMounted(refreshAll)
           ref="categoryTreeRef"
           v-loading="categoryLoading"
           class="category-tree"
+          :class="{ 'category-tree--locked': categoryInteractionLocked }"
           :data="categories"
           node-key="id"
           default-expand-all
@@ -284,13 +341,13 @@ onMounted(refreshAll)
         </el-tree>
 
         <footer class="category-tree-panel__actions">
-          <el-button type="primary" :icon="CirclePlus" @click="addRootCategory">新增根分类</el-button>
-          <el-button :icon="CirclePlus" :disabled="!selectedCategory" @click="addChildCategory">新增子分类</el-button>
+          <el-button type="primary" :icon="CirclePlus" :disabled="categoryInteractionLocked" @click="addRootCategory">新增根分类</el-button>
+          <el-button :icon="CirclePlus" :disabled="categoryInteractionLocked || !selectedCategory" @click="addChildCategory">新增子分类</el-button>
           <el-button
             type="danger"
             :icon="Delete"
             :loading="categoryDeleting"
-            :disabled="!selectedCategory"
+            :disabled="categoryInteractionLocked || !selectedCategory"
             @click="confirmDeleteCategory"
           >删除</el-button>
         </footer>
@@ -445,6 +502,11 @@ onMounted(refreshAll)
   flex: 1;
   margin-top: 14px;
   min-height: 380px;
+}
+
+.category-tree--locked {
+  pointer-events: none;
+  opacity: 0.72;
 }
 
 .category-tree__node {
