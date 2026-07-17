@@ -14,7 +14,7 @@ import EmptyState from '@/components/feedback/EmptyState.vue'
 import ErrorState from '@/components/feedback/ErrorState.vue'
 import { useNotificationStore } from '@/stores/modules/notification'
 import { formatDateTime } from '@/utils/format-date'
-import { notificationTypeLabel, resolveNotificationRoute } from '@/utils/notification-view'
+import { notificationDisplayText, notificationTypeLabel, resolveNotificationRoute } from '@/utils/notification-view'
 import type { NotificationType, NotificationVO } from '@/types/notification'
 
 const NOTIFICATION_TYPE_OPTIONS: { label: string; value: NotificationType }[] = [
@@ -181,8 +181,8 @@ onMounted(refreshPage)
           <el-table-column label="内容" min-width="320">
             <template #default="{ row }: { row: NotificationVO }">
               <div class="notification-center__content">
-                <strong>{{ row.title }}</strong>
-                <span>{{ row.content }}</span>
+                <strong>{{ notificationDisplayText(row.title) }}</strong>
+                <span>{{ notificationDisplayText(row.content) }}</span>
               </div>
             </template>
           </el-table-column>

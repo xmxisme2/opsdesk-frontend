@@ -10,7 +10,7 @@ import ErrorState from '@/components/feedback/ErrorState.vue'
 import PriorityTag from '@/components/business/PriorityTag.vue'
 import StatusTag from '@/components/business/StatusTag.vue'
 import { formatDateTime } from '@/utils/format-date'
-import { notificationTypeLabel, resolveNotificationRoute } from '@/utils/notification-view'
+import { notificationDisplayText, notificationTypeLabel, resolveNotificationRoute } from '@/utils/notification-view'
 import { buildWorkbenchMetrics, buildWorkbenchQuickActions } from '@/utils/workbench-view'
 import type { WorkbenchSummary } from '@/types/dashboard'
 import type { NotificationVO } from '@/types/notification'
@@ -168,8 +168,8 @@ onMounted(loadSummary)
             @click="viewNotification(item)"
           >
             <el-tag :type="item.read ? 'info' : 'primary'" effect="light">{{ notificationTypeLabel(item.type) }}</el-tag>
-            <strong>{{ item.title }}</strong>
-            <span>{{ item.content }}</span>
+            <strong>{{ notificationDisplayText(item.title) }}</strong>
+            <span>{{ notificationDisplayText(item.content) }}</span>
             <time>{{ formatDateTime(item.createdAt) }}</time>
           </button>
         </div>

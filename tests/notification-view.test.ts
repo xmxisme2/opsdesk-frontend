@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { notificationTypeLabel, resolveNotificationRoute } from '../src/utils/notification-view.ts'
+import { notificationDisplayText, notificationTypeLabel, resolveNotificationRoute } from '../src/utils/notification-view.ts'
 import type { NotificationVO } from '../src/types/notification.ts'
 
 function notification(overrides: Partial<NotificationVO>): NotificationVO {
@@ -22,6 +22,12 @@ test('notificationTypeLabel 将通知类型转为中文业务释义', () => {
   assert.equal(notificationTypeLabel('TICKET_ASSIGNED'), '工单分派')
   assert.equal(notificationTypeLabel('TICKET_COMMENTED'), '工单评论')
   assert.equal(notificationTypeLabel('TICKET_OVERDUE'), '超时提醒')
+})
+
+test('notificationDisplayText 将历史通知中的工单状态编码转为中文名称', () => {
+  assert.equal(notificationDisplayText('工单 IT20260710-201 当前状态为 PENDING_CONFIRM'), '工单 IT20260710-201 当前状态为 待确认')
+  assert.equal(notificationDisplayText('PROCESSING -> COMPLETED'), '处理中 -> 已完成')
+  assert.equal(notificationDisplayText('状态正常'), '状态正常')
 })
 
 test('resolveNotificationRoute 按业务类型跳转详情页', () => {

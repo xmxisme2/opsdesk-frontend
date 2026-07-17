@@ -9,6 +9,7 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import PaginationBar from '@/components/common/PaginationBar.vue'
 import { createDebouncedFn } from '@/utils/debounce'
 import { formatDateTime } from '@/utils/format-date'
+import { auditBizTypeLabel, auditOperationTypeLabel } from '@/utils/audit-view'
 import type { AuditLogVO } from '@/types/audit'
 import type { BizType } from '@/types/file'
 import type { UserVO } from '@/types/user'
@@ -144,12 +145,12 @@ onBeforeUnmount(() => debouncedSearch.cancel())
         </el-form-item>
         <el-form-item label="操作类型">
           <el-select v-model="query.operationType" clearable filterable placeholder="全部操作" @change="search">
-            <el-option v-for="item in operationTypeOptions" :key="item" :label="item" :value="item" />
+          <el-option v-for="item in operationTypeOptions" :key="item" :label="auditOperationTypeLabel(item)" :value="item" />
           </el-select>
         </el-form-item>
         <el-form-item label="业务类型">
           <el-select v-model="query.bizType" clearable filterable placeholder="全部业务" @change="search">
-            <el-option v-for="item in bizTypeOptions" :key="item" :label="item" :value="item" />
+          <el-option v-for="item in bizTypeOptions" :key="item" :label="auditBizTypeLabel(item)" :value="item" />
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
@@ -171,10 +172,10 @@ onBeforeUnmount(() => debouncedSearch.cancel())
           <template #default="{ row }: { row: AuditLogVO }">{{ row.operatorName || row.operatorId || '系统任务' }}</template>
         </el-table-column>
         <el-table-column label="类型" min-width="126">
-          <template #default="{ row }: { row: AuditLogVO }"><el-tag :type="tagType(row.operationType)" size="small">{{ row.operationType }}</el-tag></template>
+          <template #default="{ row }: { row: AuditLogVO }"><el-tag :type="tagType(row.operationType)" size="small">{{ auditOperationTypeLabel(row.operationType) }}</el-tag></template>
         </el-table-column>
         <el-table-column label="业务" min-width="128">
-          <template #default="{ row }: { row: AuditLogVO }"><span>{{ row.bizType }}</span><small>{{ row.bizId || '-' }}</small></template>
+          <template #default="{ row }: { row: AuditLogVO }"><span>{{ auditBizTypeLabel(row.bizType) }}</span><small>{{ row.bizId || '-' }}</small></template>
         </el-table-column>
         <el-table-column label="内容" prop="content" min-width="260" show-overflow-tooltip />
         <el-table-column label="IP" min-width="132">
