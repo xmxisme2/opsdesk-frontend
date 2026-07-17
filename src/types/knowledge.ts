@@ -1,4 +1,5 @@
 import type { ApiId } from './api'
+import type { FileVO } from './file'
 
 export type KnowledgeStatus = 'DRAFT' | 'PUBLISHED' | 'OFFLINE'
 
@@ -10,6 +11,7 @@ export interface KnowledgeArticleVO {
   categoryId?: ApiId
   categoryName?: string
   tags: string[]
+  attachments: FileVO[]
   sourceTicketId?: ApiId
   sourceTicketNo?: string
   status: KnowledgeStatus
@@ -45,5 +47,7 @@ export interface KnowledgeArticleMutation {
   content: string
   categoryId?: ApiId
   tags: string[]
+  /** 本次保存需要绑定的临时附件 ID；已绑定附件由独立删除接口管理。 */
+  attachmentIds?: ApiId[]
   sourceTicketId?: ApiId
 }
