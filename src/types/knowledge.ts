@@ -20,3 +20,30 @@ export interface KnowledgeArticleVO {
   createdAt: string
   updatedAt: string
 }
+
+/** 知识库分类树节点。 */
+export interface KnowledgeCategoryVO {
+  id: ApiId
+  parentId?: ApiId
+  name: string
+  sort: number
+  enabled: boolean
+  children: KnowledgeCategoryVO[]
+}
+
+/** 知识库标签及当前关联文章数。 */
+export interface KnowledgeTagVO {
+  id: ApiId
+  name: string
+  articleCount: number
+}
+
+/** 文章保存请求，发布和下线使用独立动作接口。 */
+export interface KnowledgeArticleMutation {
+  title: string
+  summary?: string
+  content: string
+  categoryId?: ApiId
+  tags: string[]
+  sourceTicketId?: ApiId
+}
