@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import * as Icons from '@element-plus/icons-vue'
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { isNavigationFailure, NavigationFailureType, useRoute, useRouter } from 'vue-router'
 import { usePermissionStore } from '@/stores/modules/permission'
-import type { MenuConfig } from '@/constants/permissions'
 
 const permissionStore = usePermissionStore()
 const route = useRoute()
@@ -15,9 +15,23 @@ function resolveIcon(name: string) {
   return Icons[name as keyof typeof Icons] || Icons.Menu
 }
 
-function openMenu(menu: MenuConfig) {
-  if (!menu.children?.length) {
-    router.push(menu.path)
+/**
+ * 统一由 el-menu 的 select 事件驱动导航，避免菜单项 click 与组件内部选中事件在快速点击时重复触发。
+ * 取消和重复导航属于快速切换的正常结果，只有真实路由异常才向用户提示。
+ */
+async function openMenu(path: string) {
+  if (path === route.path) {
+    return
+  }
+  try {
+    const failure = await router.push(path)
+    if (failure
+      && !isNavigationFailure(failure, NavigationFailureType.cancelled)
+      && !isNavigationFailure(failure, NavigationFailureType.duplicated)) {
+      ElMessage.error('页面跳转失败，请重试')
+    }
+  } catch {
+    ElMessage.error('页面跳转失败，请重试')
   }
 }
 </script>
@@ -32,19 +46,19 @@ function openMenu(menu: MenuConfig) {
       </div>
     </div>
 
-    <el-menu class="app-sidebar__menu" :default-active="activeMenu" background-color="transparent" text-color="#b8c2d4" active-text-color="#ffffff">
+    <el-menu class="app-sidebar__menu" :default-active="activeMenu" background-color="transparent" text-color="#b8c2d4" active-text-color="#ffffff" @select="openMenu">
       <template v-for="menu in permissionStore.menus" :key="menu.path">
         <el-sub-menu v-if="menu.children?.length" :index="menu.path">
           <template #title>
             <el-icon><component :is="resolveIcon(menu.icon)" /></el-icon>
             <span>{{ menu.title }}</span>
           </template>
-          <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path" @click="openMenu(child)">
+          <el-menu-item v-for="child in menu.children" :key="child.path" :index="child.path">
             <el-icon><component :is="resolveIcon(child.icon)" /></el-icon>
             <span>{{ child.title }}</span>
           </el-menu-item>
         </el-sub-menu>
-        <el-menu-item v-else :index="menu.path" @click="openMenu(menu)">
+        <el-menu-item v-else :index="menu.path">
           <el-icon><component :is="resolveIcon(menu.icon)" /></el-icon>
           <span>{{ menu.title }}</span>
         </el-menu-item>
