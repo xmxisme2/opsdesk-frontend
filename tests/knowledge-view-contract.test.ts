@@ -15,8 +15,11 @@ test('知识库列表具备分页、错误重试、分类标签筛选和维护�
   assert.doesNotMatch(listView, /FeaturePlaceholder/)
 })
 
-test('知识库详情具备保存、发布、下线和删除动作', () => {
+test('知识库详情支持新建时保存草稿或保存并发布', () => {
   assert.match(detailView, /createKnowledgeArticle/)
+  assert.match(detailView, /publishOnCreate/)
+  assert.match(detailView, /status: isNew\.value && publishOnCreate \? 'PUBLISHED' : undefined/)
+  assert.match(detailView, /保存并发布/)
   assert.match(detailView, /publishKnowledgeArticle/)
   assert.match(detailView, /offlineKnowledgeArticle/)
   assert.match(detailView, /deleteKnowledgeArticle/)

@@ -32,7 +32,7 @@ function fileSize(file: FileVO) { return file.fileSize < 1024 * 1024 ? `${Math.m
 
 async function load() { if (isNew.value) { if (!canMaintain.value) { router.replace('/knowledge'); return }; editing.value = true; attachments.value = []; return }; loading.value = true; errorMessage.value = ''; try { article.value = await getKnowledgeArticleDetail(id.value); fillForm(article.value) } catch (error) { errorMessage.value = error instanceof Error ? error.message : '文章加载失败' } finally { loading.value = false } }
 async function loadOptions() { const [categoryResult, tagResult] = await Promise.all([getKnowledgeCategoryTree(true), searchKnowledgeTags()]); categories.value = categoryResult; tagOptions.value = tagResult }
-async function save() { if (!form.title.trim() || !form.content.trim()) { ElMessage.warning('请填写标题和正文'); return }; saving.value = true; try { const payload: KnowledgeArticleMutation = { ...form, attachmentIds: pendingAttachmentIds.value }; const result = isNew.value ? await createKnowledgeArticle(payload) : await updateKnowledgeArticle(id.value, payload); ElMessage.success('文章已保存'); if (isNew.value) await router.replace(`/knowledge/${result.id}`); article.value = result; fillForm(result); editing.value = false } finally { saving.value = false } }
+async function save(publishOnCreate = false) { if (!form.title.trim() || !form.content.trim()) { ElMessage.warning('请填写标题和正文'); return }; saving.value = true; try { const payload: KnowledgeArticleMutation = { ...form, attachmentIds: pendingAttachmentIds.value, status: isNew.value && publishOnCreate ? 'PUBLISHED' : undefined }; const result = isNew.value ? await createKnowledgeArticle(payload) : await updateKnowledgeArticle(id.value, payload); ElMessage.success(publishOnCreate ? '文章已保存并发布' : '文章已保存'); if (isNew.value) await router.replace(`/knowledge/${result.id}`); article.value = result; fillForm(result); editing.value = false } finally { saving.value = false } }
 async function publish() { article.value = await publishKnowledgeArticle(id.value); fillForm(article.value); ElMessage.success('文章已发布') }
 async function offline() { const { value } = await ElMessageBox.prompt('请输入下线原因', '下线文章', { inputValidator: (input) => Boolean(input.trim()) || '请输入原因' }); article.value = await offlineKnowledgeArticle(id.value, value); fillForm(article.value); ElMessage.success('文章已下线') }
 async function remove() { await ElMessageBox.confirm('删除后文章不可恢复，确认继续？', '删除文章', { type: 'warning' }); await deleteKnowledgeArticle(id.value); ElMessage.success('文章已删除'); router.replace('/knowledge') }
@@ -49,7 +49,8 @@ onMounted(() => Promise.allSettled([loadOptions(), load()]))
       <template #actions>
         <el-button @click="router.push('/knowledge')">返回列表</el-button>
         <el-button v-if="canMaintain && !editing && !isNew" type="primary" @click="editing = true">编辑</el-button>
-        <el-button v-if="editing" type="primary" :loading="saving" @click="save">保存草稿</el-button>
+        <el-button v-if="editing" type="primary" :loading="saving" @click="save()">保存草稿</el-button>
+        <el-button v-if="editing && isNew && canManage" type="success" :loading="saving" @click="save(true)">保存并发布</el-button>
         <el-button v-if="canManage && article?.status !== 'PUBLISHED' && !editing" type="success" @click="publish">发布</el-button>
         <el-button v-if="canManage && article?.status === 'PUBLISHED' && !editing" @click="offline">下线</el-button>
         <el-button v-if="canManage && !isNew && !editing" type="danger" plain @click="remove">删除</el-button>
