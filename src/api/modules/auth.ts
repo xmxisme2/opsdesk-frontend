@@ -43,3 +43,5 @@ export function kickoutOtherSessions(currentRefreshToken: string) {
 export function updateMyProfile(data: Partial<UserVO> & { departmentId?: ApiId }) {
   return post<UserVO>('/users/me/profile', data)
 }
+
+export function uploadMyAvatar(file: File) { const data = new FormData(); data.append('file', file); return post<UserVO>('/users/me/avatar', data, { dedupe: 'ignore-current', dedupeKey: 'profile:avatar' }) }
