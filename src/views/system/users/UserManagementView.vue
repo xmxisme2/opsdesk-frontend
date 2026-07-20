@@ -570,7 +570,8 @@ onBeforeUnmount(() => {
         <el-table-column label="用户" min-width="180">
           <template #default="{ row }: { row: UserVO }">
             <div class="user-cell">
-              <el-avatar :size="34" class="user-cell__avatar">{{ displayUserName(row).slice(0, 1) }}</el-avatar>
+              <!-- 列表直接使用用户资料返回的头像地址，自定义头像和默认头像共用同一展示逻辑。 -->
+              <el-avatar :size="34" :src="row.avatarUrl" class="user-cell__avatar">{{ displayUserName(row).slice(0, 1) }}</el-avatar>
               <div>
                 <strong>{{ displayUserName(row) }}</strong>
                 <span>{{ row.username || row.phone }}</span>
