@@ -34,10 +34,11 @@ test('buildWorkbenchMetrics 将摘要数据映射为 Figma 四张指标卡', () 
   )
 })
 
-test('buildWorkbenchQuickActions 保留已落地入口并标记延后能力', () => {
+test('buildWorkbenchQuickActions 保留已落地入口并避免无工单上下文的草稿动作', () => {
   const actions = buildWorkbenchQuickActions()
 
   assert.equal(actions[0].path, '/tickets/create')
-  assert.equal(actions.find((item) => item.key === 'knowledgeDraft')?.disabled, true)
+  assert.equal(actions.find((item) => item.key === 'knowledge')?.path, '/knowledge')
+  assert.equal(actions.find((item) => item.key === 'knowledgeDraft'), undefined)
   assert.equal(actions.find((item) => item.key === 'dashboard')?.path, '/dashboard')
 })

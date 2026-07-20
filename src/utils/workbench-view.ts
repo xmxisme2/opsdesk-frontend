@@ -51,13 +51,13 @@ export function buildWorkbenchMetrics(summary: WorkbenchSummary): WorkbenchMetri
   ]
 }
 
-// 快捷入口集中定义，后续接知识库草稿时只需打开 disabled 并补路由。
+// 快捷入口集中定义；知识草稿只能从具体终态工单生成，因此工作台提供知识库入口而不展示无上下文的草稿按钮。
 export function buildWorkbenchQuickActions(): WorkbenchQuickAction[] {
   return [
     { key: 'createTicket', label: '创建工单', path: '/tickets/create' },
     { key: 'todoQueue', label: '待处理队列', path: '/tickets?status=PENDING_PROCESS' },
     { key: 'notifications', label: '通知中心', path: '/notifications' },
-    { key: 'knowledgeDraft', label: '知识库草稿（P2 延后）', disabled: true },
+    { key: 'knowledge', label: '知识库', path: '/knowledge' },
     { key: 'dashboard', label: '查看团队看板', path: '/dashboard' },
   ]
 }

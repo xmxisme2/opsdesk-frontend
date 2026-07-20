@@ -7,6 +7,7 @@ import {
   Close,
   Connection,
   Delete,
+  DocumentAdd,
   Download,
   Edit,
   Paperclip,
@@ -37,6 +38,7 @@ import {
   unwatchTicket,
   watchTicket,
 } from '@/api/modules/tickets'
+import { createKnowledgeArticleFromTicket } from '@/api/modules/knowledge'
 import { createComment, deleteComment, searchComments } from '@/api/modules/comments'
 import { deleteFile, downloadFileBlob, previewFile, previewFileBlob, uploadFile } from '@/api/modules/files'
 import { searchTeamMembers, searchTeams } from '@/api/modules/teams'
@@ -111,6 +113,8 @@ const previewLoading = ref(false)
 const previewTitle = ref('')
 const previewContent = ref('')
 const previewImageUrl = ref('')
+const knowledgeDraftDialogVisible = ref(false)
+const knowledgeDraftLoading = ref(false)
 
 const actionForm = reactive({
   teamId: undefined as ApiId | undefined,
@@ -125,6 +129,10 @@ const commentForm = reactive({
   tempToken: '',
   files: [] as FileVO[],
 })
+const knowledgeDraftOptions = reactive({
+  includeComments: true,
+  includeAttachments: true,
+})
 
 const availableActions = computed(() => (ticket.value ? resolveTicketActions(ticket.value, authStore.currentUser) : []))
 const dueState = computed(() => formatTicketDueState(ticket.value?.dueTime, ticket.value?.overdue, ticket.value?.status))
@@ -135,6 +143,15 @@ const needsReason = computed(() => ['reject', 'reopen', 'cancel'].includes(activ
 const optionalReason = computed(() => activeAction.value === 'close')
 const needsRemark = computed(() => activeAction.value === 'complete')
 const optionalComment = computed(() => activeAction.value === 'confirm')
+// 仅终态工单允许沉淀为知识草稿，入口与后端 AGENT+ 权限保持一致。
+const canCreateKnowledgeDraft = computed(() => {
+  const currentTicket = ticket.value
+  if (!currentTicket) {
+    return false
+  }
+  return ['COMPLETED', 'CLOSED'].includes(currentTicket.status)
+    && authStore.hasRole(['AGENT', 'MANAGER', 'ADMIN'])
+})
 
 async function loadTicket() {
   loading.value = true
@@ -145,6 +162,25 @@ async function loadTicket() {
     error.value = loadError instanceof Error ? loadError.message : '工单详情加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+function openKnowledgeDraftDialog() {
+  knowledgeDraftOptions.includeComments = true
+  knowledgeDraftOptions.includeAttachments = true
+  knowledgeDraftDialogVisible.value = true
+}
+
+async function createKnowledgeDraftFromTicket() {
+  if (!ticket.value) return
+  knowledgeDraftLoading.value = true
+  try {
+    const article = await createKnowledgeArticleFromTicket(ticket.value.id, knowledgeDraftOptions)
+    knowledgeDraftDialogVisible.value = false
+    ElMessage.success('知识草稿已生成')
+    await router.push(`/knowledge/${article.id}`)
+  } finally {
+    knowledgeDraftLoading.value = false
   }
 }
 
@@ -731,6 +767,13 @@ onBeforeUnmount(clearPreviewImageUrl)
           <EmptyState v-else message="当前状态没有可执行动作" />
         </section>
 
+        <section v-if="canCreateKnowledgeDraft" class="ticket-detail-page__actions">
+          <h3>知识沉淀</h3>
+          <el-button :icon="DocumentAdd" type="primary" plain @click="openKnowledgeDraftDialog">
+            生成知识草稿
+          </el-button>
+        </section>
+
         <el-alert
           :title="`当前状态：${TICKET_STATUS_LABELS[ticket.status]}`"
           description="按钮按后端 availableActions 展示；字段缺失时不展示动作，提交后仍由后端做最终校验。"
@@ -790,6 +833,18 @@ onBeforeUnmount(clearPreviewImageUrl)
       <template #footer>
         <el-button @click="actionDialogVisible = false">取消</el-button>
         <el-button :type="actionType(activeAction)" :loading="actionLoading" @click="executeAction">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="knowledgeDraftDialogVisible" title="生成知识草稿" width="460px">
+      <p class="ticket-detail-page__knowledge-hint">将根据当前终态工单生成可编辑草稿，来源工单保持不变。</p>
+      <div class="ticket-detail-page__knowledge-options">
+        <el-checkbox v-model="knowledgeDraftOptions.includeComments">带入公开评论</el-checkbox>
+        <el-checkbox v-model="knowledgeDraftOptions.includeAttachments">复制工单附件</el-checkbox>
+      </div>
+      <template #footer>
+        <el-button :disabled="knowledgeDraftLoading" @click="knowledgeDraftDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="knowledgeDraftLoading" @click="createKnowledgeDraftFromTicket">生成并编辑</el-button>
       </template>
     </el-dialog>
 
@@ -1091,6 +1146,18 @@ onBeforeUnmount(clearPreviewImageUrl)
 .ticket-detail-page__action-grid :deep(.el-button) {
   width: 100%;
   margin: 0;
+}
+
+.ticket-detail-page__knowledge-hint {
+  margin: 0 0 16px;
+  color: var(--ops-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ticket-detail-page__knowledge-options :deep(.el-checkbox) {
+  display: flex;
+  margin: 12px 0;
 }
 
 .ticket-detail-page__preview {
