@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
@@ -17,6 +17,8 @@ const captchaLoading = ref(false)
 const serverError = ref('')
 const loginMode = ref<'PASSWORD' | 'SMS'>('PASSWORD')
 const smsSending = ref(false)
+const smsCooldown = ref(0)
+let smsTimer: number | undefined
 
 const form = reactive<LoginRequest>({
   phone: '',
@@ -75,7 +77,14 @@ async function submitLogin() {
 async function sendLoginSms() {
   if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
   smsSending.value = true
-  try { const result = await sendSmsCode({ phone: form.phone, scene: 'login' }); ElMessage.success(result.message) } finally { smsSending.value = false }
+  try { const result = await sendSmsCode({ phone: form.phone, scene: 'login' }); startSmsCooldown(result.cooldownSeconds); ElMessage.success(result.message) } finally { smsSending.value = false }
+}
+
+/** 成功发送后按后端返回值倒计时；Redis 仍是最终限制，刷新页面不能绕过。 */
+function startSmsCooldown(seconds: number) {
+  window.clearInterval(smsTimer)
+  smsCooldown.value = seconds
+  smsTimer = window.setInterval(() => { smsCooldown.value -= 1; if (smsCooldown.value <= 0) window.clearInterval(smsTimer) }, 1000)
 }
 
 async function switchMode() {
@@ -85,6 +94,7 @@ async function switchMode() {
 }
 
 onMounted(refreshCaptcha)
+onBeforeUnmount(() => window.clearInterval(smsTimer))
 </script>
 
 <template>
@@ -123,7 +133,7 @@ onMounted(refreshCaptcha)
           </div>
         </el-form-item>
 
-        <el-form-item v-else label="短信验证码" prop="captchaCode"><div class="captcha-row"><el-input v-model="form.captchaCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :loading="smsSending" @click="sendLoginSms">发送验证码</el-button></div></el-form-item>
+        <el-form-item v-else label="短信验证码" prop="captchaCode"><div class="captcha-row"><el-input v-model="form.captchaCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :disabled="smsCooldown > 0" :loading="smsSending" @click="sendLoginSms">{{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '发送验证码' }}</el-button></div></el-form-item>
 
         <div class="login-card__options">
           <el-checkbox v-model="form.rememberMe">记住登录状态</el-checkbox>

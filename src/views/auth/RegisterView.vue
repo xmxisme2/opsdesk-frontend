@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getAvatarOptions, register, sendSmsCode } from '@/api/modules/auth'
@@ -17,6 +17,8 @@ const departmentLoading = ref(false)
 const registerLoading = ref(false)
 const serverError = ref('')
 const smsSending = ref(false)
+const smsCooldown = ref(0)
+let smsTimer: number | undefined
 
 const form = reactive<RegisterRequest>({
   phone: '',
@@ -118,7 +120,14 @@ async function submitRegister() {
 async function sendRegisterSms() {
   if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
   smsSending.value = true
-  try { const result = await sendSmsCode({ phone: form.phone, scene: 'register' }); ElMessage.success(result.message) } finally { smsSending.value = false }
+  try { const result = await sendSmsCode({ phone: form.phone, scene: 'register' }); startSmsCooldown(result.cooldownSeconds); ElMessage.success(result.message) } finally { smsSending.value = false }
+}
+
+/** 倒计时仅改善页面体验，后端 Redis 冷却键始终负责最终拦截。 */
+function startSmsCooldown(seconds: number) {
+  window.clearInterval(smsTimer)
+  smsCooldown.value = seconds
+  smsTimer = window.setInterval(() => { smsCooldown.value -= 1; if (smsCooldown.value <= 0) window.clearInterval(smsTimer) }, 1000)
 }
 
 watch(
@@ -133,6 +142,7 @@ onMounted(() => {
   loadDepartmentOptions()
   loadAvatarOptions()
 })
+onBeforeUnmount(() => window.clearInterval(smsTimer))
 </script>
 
 <template>
@@ -149,7 +159,7 @@ onMounted(() => {
           <el-input v-model="form.phone" autocomplete="username" maxlength="11" placeholder="请输入手机号" />
         </el-form-item>
 
-        <el-form-item label="短信验证码" prop="smsCode"><div class="sms-code-row"><el-input v-model="form.smsCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :loading="smsSending" @click="sendRegisterSms">发送验证码</el-button></div></el-form-item>
+        <el-form-item label="短信验证码" prop="smsCode"><div class="sms-code-row"><el-input v-model="form.smsCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :disabled="smsCooldown > 0" :loading="smsSending" @click="sendRegisterSms">{{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '发送验证码' }}</el-button></div></el-form-item>
 
         <el-form-item label="主属部门" prop="departmentId">
           <el-tree-select

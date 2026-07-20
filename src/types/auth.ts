@@ -27,6 +27,7 @@ export interface RegisterRequest {
 export interface SmsCodeSendResult {
   enabled: boolean
   message: string
+  cooldownSeconds: number
 }
 
 export interface LoginResult {
