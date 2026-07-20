@@ -2,8 +2,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { FormInstance, FormRules } from 'element-plus'
-import { getCaptcha } from '@/api/modules/auth'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { getCaptcha, sendSmsCode } from '@/api/modules/auth'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useAuthStore } from '@/stores/modules/auth'
 import type { LoginRequest } from '@/types/auth'
@@ -15,14 +15,15 @@ const formRef = ref<FormInstance>()
 const captchaImage = ref('')
 const captchaLoading = ref(false)
 const serverError = ref('')
+const loginMode = ref<'PASSWORD' | 'SMS'>('PASSWORD')
+const smsSending = ref(false)
 
 const form = reactive<LoginRequest>({
   phone: '',
   password: '',
   rememberMe: true,
   captchaType: 'IMAGE',
-  captchaId: '',
-  captchaCode: '',
+  captchaId: '', captchaCode: '',
 })
 
 const phonePattern = /^1\d{10}$/
@@ -32,8 +33,6 @@ const rules: FormRules<LoginRequest> = {
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: phonePattern, message: '请输入 11 位中国大陆手机号', trigger: 'blur' },
   ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-  captchaCode: [{ required: true, message: '请输入图形验证码', trigger: 'blur' }],
 }
 
 // 登录页首次进入即加载图形验证码，登录失败后刷新验证码避免继续提交过期或已消费的验证码。
@@ -54,15 +53,35 @@ async function submitLogin() {
   if (!valid) {
     return
   }
+  if (loginMode.value === 'PASSWORD' && (!form.password || !form.captchaCode)) {
+    serverError.value = '请输入密码和图形验证码'
+    return
+  }
+  if (loginMode.value === 'SMS' && !form.captchaCode) {
+    serverError.value = '请输入短信验证码'
+    return
+  }
 
   try {
-    await authStore.login(form)
+    await authStore.login({ ...form, captchaType: loginMode.value === 'SMS' ? 'SMS' : 'IMAGE' })
     await router.push(String(route.query.redirect || '/workbench'))
   } catch (error) {
     serverError.value = error instanceof Error ? error.message : '登录失败，请稍后重试'
     form.captchaCode = ''
-    await refreshCaptcha()
+    if (loginMode.value === 'PASSWORD') await refreshCaptcha()
   }
+}
+
+async function sendLoginSms() {
+  if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
+  smsSending.value = true
+  try { const result = await sendSmsCode({ phone: form.phone, scene: 'login' }); ElMessage.success(result.message) } finally { smsSending.value = false }
+}
+
+async function switchMode() {
+  loginMode.value = loginMode.value === 'PASSWORD' ? 'SMS' : 'PASSWORD'
+  form.captchaCode = ''
+  if (loginMode.value === 'PASSWORD' && !captchaImage.value) await refreshCaptcha()
 }
 
 onMounted(refreshCaptcha)
@@ -83,7 +102,7 @@ onMounted(refreshCaptcha)
         </el-form-item>
 
         <el-form-item label="密码" prop="password">
-          <el-input
+          <el-input v-if="loginMode === 'PASSWORD'"
             v-model="form.password"
             autocomplete="current-password"
             placeholder="请输入密码"
@@ -92,7 +111,7 @@ onMounted(refreshCaptcha)
           />
         </el-form-item>
 
-        <el-form-item label="图形验证码" prop="captchaCode">
+        <el-form-item v-if="loginMode === 'PASSWORD'" label="图形验证码" prop="captchaCode">
           <div class="captcha-row">
             <el-input v-model="form.captchaCode" maxlength="6" placeholder="请输入验证码" />
             <button class="captcha-row__image" type="button" :disabled="captchaLoading" @click="refreshCaptcha">
@@ -104,9 +123,11 @@ onMounted(refreshCaptcha)
           </div>
         </el-form-item>
 
+        <el-form-item v-else label="短信验证码" prop="captchaCode"><div class="captcha-row"><el-input v-model="form.captchaCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :loading="smsSending" @click="sendLoginSms">发送验证码</el-button></div></el-form-item>
+
         <div class="login-card__options">
           <el-checkbox v-model="form.rememberMe">记住登录状态</el-checkbox>
-          <el-button link disabled type="primary">短信验证码登录</el-button>
+          <el-button link type="primary" @click="switchMode">{{ loginMode === 'PASSWORD' ? '短信验证码登录' : '密码登录' }}</el-button>
         </div>
 
         <p v-if="serverError" class="login-card__error">{{ serverError }}</p>

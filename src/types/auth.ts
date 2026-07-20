@@ -3,11 +3,11 @@ import type { UserGender, UserVO } from './user'
 
 export interface LoginRequest {
   phone: string
-  password: string
+  password?: string
   rememberMe: boolean
   captchaType: 'IMAGE' | 'SMS'
-  captchaId: string
-  captchaCode: string
+  captchaId?: string
+  captchaCode?: string
 }
 
 export interface RegisterRequest {
@@ -20,6 +20,13 @@ export interface RegisterRequest {
   email?: string
   captchaId?: string
   captchaCode?: string
+  smsCode?: string
+}
+
+/** 短信发送接口仅返回发送状态，验证码本身不会返回给浏览器。 */
+export interface SmsCodeSendResult {
+  enabled: boolean
+  message: string
 }
 
 export interface LoginResult {

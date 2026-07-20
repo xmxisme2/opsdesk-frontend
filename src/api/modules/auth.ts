@@ -1,6 +1,6 @@
 import { post } from '@/api/http'
 import type { ApiId } from '@/types/api'
-import type { AvatarOption, CaptchaResult, LoginRequest, LoginResult, RegisterRequest } from '@/types/auth'
+import type { AvatarOption, CaptchaResult, LoginRequest, LoginResult, RegisterRequest, SmsCodeSendResult } from '@/types/auth'
 import type { UserGender, UserVO } from '@/types/user'
 
 // 认证接口集中管理登录、注册、验证码和当前用户，页面禁止直接拼接 URL。
@@ -14,6 +14,10 @@ export function register(data: RegisterRequest) {
 
 export function getCaptcha() {
   return post<CaptchaResult>('/auth/captcha', { scene: 'login', captchaType: 'IMAGE' })
+}
+
+export function sendSmsCode(data: { phone: string; scene: 'login' | 'register' }) {
+  return post<SmsCodeSendResult>('/auth/sms-code/send', data, { dedupe: 'ignore-current', dedupeKey: `sms:${data.scene}:${data.phone}` })
 }
 
 export function getCurrentUser() {

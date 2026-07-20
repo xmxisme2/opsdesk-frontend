@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { getAvatarOptions, register } from '@/api/modules/auth'
+import { getAvatarOptions, register, sendSmsCode } from '@/api/modules/auth'
 import { getDepartmentTree } from '@/api/modules/departments'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { buildDepartmentTreeOptions, type DepartmentTreeOption } from '@/utils/department-options'
@@ -16,6 +16,7 @@ const avatarLoading = ref(false)
 const departmentLoading = ref(false)
 const registerLoading = ref(false)
 const serverError = ref('')
+const smsSending = ref(false)
 
 const form = reactive<RegisterRequest>({
   phone: '',
@@ -25,6 +26,7 @@ const form = reactive<RegisterRequest>({
   avatarCode: 'avatar_male_01',
   nickname: '',
   email: '',
+  smsCode: '',
 })
 
 const phonePattern = /^1\d{10}$/
@@ -52,6 +54,7 @@ const rules: FormRules<RegisterRequest> = {
     { min: 8, max: 64, message: '密码长度需为 8-64 位', trigger: 'blur' },
   ],
   email: [{ type: 'email', message: '请输入有效邮箱', trigger: 'blur' }],
+  smsCode: [{ required: true, message: '请输入短信验证码', trigger: 'blur' }],
 }
 
 // 注册页部门选项来自后端部门树，避免初始化数据变化后前端仍停留在旧常量。
@@ -112,6 +115,12 @@ async function submitRegister() {
   }
 }
 
+async function sendRegisterSms() {
+  if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
+  smsSending.value = true
+  try { const result = await sendSmsCode({ phone: form.phone, scene: 'register' }); ElMessage.success(result.message) } finally { smsSending.value = false }
+}
+
 watch(
   () => form.gender,
   async (gender) => {
@@ -139,6 +148,8 @@ onMounted(() => {
         <el-form-item label="手机号" prop="phone">
           <el-input v-model="form.phone" autocomplete="username" maxlength="11" placeholder="请输入手机号" />
         </el-form-item>
+
+        <el-form-item label="短信验证码" prop="smsCode"><div class="sms-code-row"><el-input v-model="form.smsCode" maxlength="8" placeholder="请输入短信验证码" /><el-button :loading="smsSending" @click="sendRegisterSms">发送验证码</el-button></div></el-form-item>
 
         <el-form-item label="主属部门" prop="departmentId">
           <el-tree-select
@@ -236,6 +247,8 @@ onMounted(() => {
 .register-card__full {
   width: 100%;
 }
+
+.sms-code-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; width: 100%; }
 
 .register-card__optional {
   display: grid;
