@@ -121,6 +121,9 @@ const actionForm = reactive({
   assigneeId: '',
   reason: '',
   remark: '',
+  resolutionSummary: '',
+  resolutionSteps: '',
+  resolutionVerified: true,
 })
 
 const commentForm = reactive({
@@ -252,6 +255,9 @@ function resetActionForm(action: TicketAction) {
     assigneeId: ticket.value?.assigneeId ?? '',
     reason: '',
     remark: '',
+    resolutionSummary: '',
+    resolutionSteps: '',
+    resolutionVerified: true,
   })
   if (usesTeamMemberPicker(action) && actionForm.teamId) {
     void loadTeamMembers()
@@ -300,8 +306,8 @@ async function executeAction() {
     ElMessage.warning(`请填写${dialogTitle.value}原因`)
     return
   }
-  if (needsRemark.value && !actionForm.remark.trim()) {
-    ElMessage.warning('请填写处理完成说明')
+  if (needsRemark.value && (!actionForm.resolutionSummary.trim() || !actionForm.resolutionSteps.trim())) {
+    ElMessage.warning('请填写解决方案摘要和处理步骤')
     return
   }
 
@@ -333,7 +339,11 @@ async function executeAction() {
         })
         break
       case 'complete':
-        await completeTicket(id, { completeRemark: actionForm.remark.trim() })
+        await completeTicket(id, {
+          resolutionSummary: actionForm.resolutionSummary.trim(),
+          resolutionSteps: actionForm.resolutionSteps.trim(),
+          resolutionVerified: actionForm.resolutionVerified,
+        })
         break
       case 'confirm':
         await confirmTicket(id, actionForm.remark.trim() || undefined)
@@ -612,6 +622,20 @@ onBeforeUnmount(clearPreviewImageUrl)
           <p class="ticket-detail-page__description">{{ ticket.description }}</p>
         </section>
 
+        <section v-if="ticket.resolutionSummary || ticket.resolutionSteps" class="ticket-detail-page__section">
+          <div class="ticket-detail-page__section-heading">
+            <h3>解决方案</h3>
+            <el-tag :type="ticket.resolutionVerified ? 'success' : 'warning'">
+              {{ ticket.resolutionVerified ? '已验证' : '待验证' }}
+            </el-tag>
+          </div>
+          <p v-if="ticket.resolutionSummary" class="ticket-detail-page__solution-summary">{{ ticket.resolutionSummary }}</p>
+          <div v-if="ticket.resolutionSteps" class="ticket-detail-page__solution-steps">
+            <strong>处理步骤</strong>
+            <p>{{ ticket.resolutionSteps }}</p>
+          </div>
+        </section>
+
         <section class="ticket-detail-page__section">
           <div class="ticket-detail-page__section-heading">
             <h3>附件</h3>
@@ -826,7 +850,32 @@ onBeforeUnmount(clearPreviewImageUrl)
         <el-form-item v-if="needsReason || optionalReason || activeAction === 'transfer'" :label="needsReason || activeAction === 'transfer' ? '原因' : '备注（可选）'">
           <el-input v-model="actionForm.reason" type="textarea" :rows="4" maxlength="500" show-word-limit />
         </el-form-item>
-        <el-form-item v-if="needsRemark || optionalComment" :label="needsRemark ? '处理完成说明' : '确认备注（可选）'">
+        <template v-if="needsRemark">
+          <el-form-item label="解决方案摘要" required>
+            <el-input
+              v-model="actionForm.resolutionSummary"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              placeholder="说明问题根因和最终处理结论"
+            />
+          </el-form-item>
+          <el-form-item label="处理步骤" required>
+            <el-input
+              v-model="actionForm.resolutionSteps"
+              type="textarea"
+              :rows="6"
+              maxlength="10000"
+              show-word-limit
+              placeholder="按顺序记录可复用的处理操作，可使用 Markdown"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-checkbox v-model="actionForm.resolutionVerified">已验证问题已解决</el-checkbox>
+          </el-form-item>
+        </template>
+        <el-form-item v-else-if="optionalComment" label="确认备注（可选）">
           <el-input v-model="actionForm.remark" type="textarea" :rows="4" maxlength="1000" show-word-limit />
         </el-form-item>
       </el-form>
@@ -955,6 +1004,19 @@ onBeforeUnmount(clearPreviewImageUrl)
   white-space: pre-wrap;
   line-height: 1.8;
   overflow-wrap: anywhere;
+}
+
+/* 解决方案使用独立信息层级，便于处理人复核并与知识库草稿保持一致。 */
+.ticket-detail-page__solution-summary,
+.ticket-detail-page__solution-steps p {
+  margin: 12px 0 0;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail-page__solution-steps {
+  margin-top: 16px;
 }
 
 .ticket-detail-page__attachments {

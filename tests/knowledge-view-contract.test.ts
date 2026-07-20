@@ -29,3 +29,11 @@ test('终态工单可按选项生成知识草稿并跳转编辑页', () => {
   assert.match(ticketDetailView, /生成知识草稿/)
   assert.match(ticketDetailView, /COMPLETED.*CLOSED/)
 })
+
+test('工单完成时采集结构化解决方案并在详情页展示', () => {
+  assert.match(ticketDetailView, /resolutionSummary/)
+  assert.match(ticketDetailView, /resolutionSteps/)
+  assert.match(ticketDetailView, /resolutionVerified/)
+  assert.match(ticketDetailView, /解决方案摘要/)
+  assert.match(ticketDetailView, /处理步骤/)
+})

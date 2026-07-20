@@ -132,7 +132,14 @@ export function transferTicket(id: ApiId, data: TicketTransferRequest) {
   return ticketAction(id, 'transfer', data)
 }
 
-export function completeTicket(id: ApiId, data: { completeRemark?: string; attachmentIds?: ApiId[] }) {
+/** 工单完成请求保留 completeRemark，兼容尚未升级的调用方。 */
+export function completeTicket(id: ApiId, data: {
+  completeRemark?: string
+  resolutionSummary?: string
+  resolutionSteps?: string
+  resolutionVerified?: boolean
+  attachmentIds?: ApiId[]
+}) {
   return ticketAction(id, 'complete', data)
 }
 

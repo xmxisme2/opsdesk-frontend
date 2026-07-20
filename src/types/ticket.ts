@@ -31,6 +31,9 @@ export interface TicketListItemVO {
 
 export interface TicketVO extends TicketListItemVO {
   description: string
+  resolutionSummary?: string
+  resolutionSteps?: string
+  resolutionVerified: boolean
   categoryId?: ApiId
   creatorId: ApiId
   assigneeId?: ApiId
