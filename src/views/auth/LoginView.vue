@@ -4,6 +4,7 @@ import { RefreshRight } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getCaptcha, sendSmsCode } from '@/api/modules/auth'
+import { OpsdeskApiError } from '@/api/http'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { useAuthStore } from '@/stores/modules/auth'
 import type { LoginRequest } from '@/types/auth'
@@ -77,13 +78,22 @@ async function submitLogin() {
 async function sendLoginSms() {
   if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
   smsSending.value = true
-  try { const result = await sendSmsCode({ phone: form.phone, scene: 'login' }); startSmsCooldown(result.cooldownSeconds); ElMessage.success(result.message) } finally { smsSending.value = false }
+  try {
+    const result = await sendSmsCode({ phone: form.phone, scene: 'login' })
+    startSmsCooldown(result.cooldownSeconds)
+    ElMessage.success(result.message)
+  } catch (error) {
+    // 限流接口可能在服务层前返回；仍显示 60 秒倒计时，避免页面提示与 Redis 状态不一致。
+    if (error instanceof OpsdeskApiError && error.code === 429001) startSmsCooldown(60)
+    throw error
+  } finally { smsSending.value = false }
 }
 
 /** 成功发送后按后端返回值倒计时；Redis 仍是最终限制，刷新页面不能绕过。 */
 function startSmsCooldown(seconds: number) {
   window.clearInterval(smsTimer)
-  smsCooldown.value = seconds
+  // 兼容旧后端或代理缓存未携带 cooldownSeconds 的瞬间，最终限制仍以 Redis 为准。
+  smsCooldown.value = Number.isFinite(Number(seconds)) && Number(seconds) > 0 ? Math.ceil(Number(seconds)) : 60
   smsTimer = window.setInterval(() => { smsCooldown.value -= 1; if (smsCooldown.value <= 0) window.clearInterval(smsTimer) }, 1000)
 }
 

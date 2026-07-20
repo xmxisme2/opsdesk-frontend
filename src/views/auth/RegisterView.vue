@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getAvatarOptions, register, sendSmsCode } from '@/api/modules/auth'
+import { OpsdeskApiError } from '@/api/http'
 import { getDepartmentTree } from '@/api/modules/departments'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import { buildDepartmentTreeOptions, type DepartmentTreeOption } from '@/utils/department-options'
@@ -120,13 +121,22 @@ async function submitRegister() {
 async function sendRegisterSms() {
   if (!phonePattern.test(form.phone)) { ElMessage.warning('请先输入正确的手机号'); return }
   smsSending.value = true
-  try { const result = await sendSmsCode({ phone: form.phone, scene: 'register' }); startSmsCooldown(result.cooldownSeconds); ElMessage.success(result.message) } finally { smsSending.value = false }
+  try {
+    const result = await sendSmsCode({ phone: form.phone, scene: 'register' })
+    startSmsCooldown(result.cooldownSeconds)
+    ElMessage.success(result.message)
+  } catch (error) {
+    // Redis 冷却命中时同步锁定按钮，刷新页面或并发请求也不会显示为可重发。
+    if (error instanceof OpsdeskApiError && error.code === 429001) startSmsCooldown(60)
+    throw error
+  } finally { smsSending.value = false }
 }
 
 /** 倒计时仅改善页面体验，后端 Redis 冷却键始终负责最终拦截。 */
 function startSmsCooldown(seconds: number) {
   window.clearInterval(smsTimer)
-  smsCooldown.value = seconds
+  // 后端字段缺失时回退 60 秒，避免旧代理缓存造成前端不显示倒计时。
+  smsCooldown.value = Number.isFinite(Number(seconds)) && Number(seconds) > 0 ? Math.ceil(Number(seconds)) : 60
   smsTimer = window.setInterval(() => { smsCooldown.value -= 1; if (smsCooldown.value <= 0) window.clearInterval(smsTimer) }, 1000)
 }
 
