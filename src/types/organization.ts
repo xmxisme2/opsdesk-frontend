@@ -1,4 +1,5 @@
 import type { ApiId } from './api'
+import type { UserVO } from './user'
 
 export interface DepartmentVO {
   id: ApiId
@@ -6,6 +7,8 @@ export interface DepartmentVO {
   name: string
   leaderId?: ApiId
   leaderName?: string
+  sort?: number
+  enabled?: boolean
   memberCount: number
   children?: DepartmentVO[]
   createdAt?: string
@@ -23,4 +26,10 @@ export interface TeamVO {
   enabled: boolean
   createdAt?: string
   updatedAt?: string
+}
+
+export interface TeamMemberVO {
+  user: UserVO
+  leader: boolean
+  joinedAt?: string
 }

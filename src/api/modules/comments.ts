@@ -15,7 +15,7 @@ export interface CommentVO {
 }
 
 // 评论接口用于工单详情协作区，内部备注可见性必须由后端按资源范围控制。
-export function createComment(ticketId: ApiId, data: { content: string; commentType: 'PUBLIC' | 'INTERNAL'; attachmentIds?: ApiId[] }) {
+export function createComment(ticketId: ApiId, data: { content: string; commentType: 'PUBLIC' | 'INTERNAL'; tempToken?: string }) {
   return post<CommentVO>(`/tickets/${ticketId}/comments/create`, data)
 }
 

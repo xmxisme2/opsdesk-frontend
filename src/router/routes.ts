@@ -80,6 +80,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '数据看板', requiresAuth: true, roles: ['MANAGER', 'ADMIN'] },
       },
       {
+        path: 'team-management',
+        name: 'team-management',
+        component: () => import('@/views/team/ManagerTeamView.vue'),
+        meta: { title: '团队成员管理', requiresAuth: true, roles: ['MANAGER'] },
+      },
+      {
         path: 'profile',
         name: 'profile',
         component: () => import('@/views/profile/ProfileView.vue'),

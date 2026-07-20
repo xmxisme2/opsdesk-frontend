@@ -15,7 +15,7 @@ export interface NotificationVO {
   title: string
   content: string
   bizType: BizType
-  bizId: ApiId
+  bizId?: ApiId | null
   read: boolean
   readAt?: string
   createdAt: string

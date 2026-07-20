@@ -3,14 +3,17 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { getAvatarOptions, register } from '@/api/modules/auth'
-import { SEED_DEPARTMENT_OPTIONS } from '@/constants/dictionaries'
+import { getDepartmentTree } from '@/api/modules/departments'
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import { buildDepartmentTreeOptions, type DepartmentTreeOption } from '@/utils/department-options'
 import type { AvatarOption, RegisterRequest } from '@/types/auth'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const avatarOptions = ref<AvatarOption[]>([])
+const departmentOptions = ref<DepartmentTreeOption[]>([])
 const avatarLoading = ref(false)
+const departmentLoading = ref(false)
 const registerLoading = ref(false)
 const serverError = ref('')
 
@@ -51,7 +54,20 @@ const rules: FormRules<RegisterRequest> = {
   email: [{ type: 'email', message: '请输入有效邮箱', trigger: 'blur' }],
 }
 
-// 注册阶段部门接口尚未进入当前后端交付范围，部门选项临时对齐 seed.sql 初始化数据。
+// 注册页部门选项来自后端部门树，避免初始化数据变化后前端仍停留在旧常量。
+async function loadDepartmentOptions() {
+  departmentLoading.value = true
+  try {
+    const departments = await getDepartmentTree({ enabled: true })
+    departmentOptions.value = buildDepartmentTreeOptions(departments)
+  } catch (error) {
+    departmentOptions.value = []
+    serverError.value = error instanceof Error ? error.message : '部门加载失败，请刷新后重试'
+  } finally {
+    departmentLoading.value = false
+  }
+}
+
 async function loadAvatarOptions() {
   avatarLoading.value = true
   try {
@@ -104,7 +120,10 @@ watch(
   },
 )
 
-onMounted(loadAvatarOptions)
+onMounted(() => {
+  loadDepartmentOptions()
+  loadAvatarOptions()
+})
 </script>
 
 <template>
@@ -122,14 +141,18 @@ onMounted(loadAvatarOptions)
         </el-form-item>
 
         <el-form-item label="主属部门" prop="departmentId">
-          <el-select v-model="form.departmentId" class="register-card__full" placeholder="请选择主属部门">
-            <el-option
-              v-for="department in SEED_DEPARTMENT_OPTIONS"
-              :key="department.value"
-              :label="department.label"
-              :value="department.value"
-            />
-          </el-select>
+          <el-tree-select
+            v-model="form.departmentId"
+            class="register-card__full"
+            :data="departmentOptions"
+            :loading="departmentLoading"
+            check-strictly
+            filterable
+            node-key="value"
+            placeholder="请选择主属部门"
+            empty-text="暂无部门"
+            :render-after-expand="false"
+          />
         </el-form-item>
 
         <el-form-item label="性别" prop="gender">

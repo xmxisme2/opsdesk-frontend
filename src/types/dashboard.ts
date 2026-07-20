@@ -1,4 +1,5 @@
 import type { TicketListItemVO } from './ticket'
+import type { NotificationVO } from './notification'
 
 export interface WorkbenchSummary {
   todoCount: number
@@ -6,8 +7,12 @@ export interface WorkbenchSummary {
   assignedCount: number
   watchingCount: number
   unreadNotificationCount: number
+  pendingAssignCount: number
+  pendingProcessCount: number
+  processingCount: number
+  overdueCount: number
   latestTickets: TicketListItemVO[]
-  latestNotifications: unknown[]
+  latestNotifications: NotificationVO[]
 }
 
 export interface DashboardSummary {
@@ -17,4 +22,24 @@ export interface DashboardSummary {
   overdueCount: number
   avgProcessDuration: number
   completionRate: number
+}
+
+export interface DashboardTrendPoint {
+  date: string
+  createdCount: number
+  completedCount: number
+  overdueCount: number
+}
+
+export interface DashboardDistributionItem {
+  name: string
+  value: number
+}
+
+export interface DashboardAgentRankingItem {
+  userId: string
+  userName: string
+  completedCount: number
+  avgProcessDuration: number
+  overdueCount: number
 }

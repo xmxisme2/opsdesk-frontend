@@ -15,7 +15,7 @@ export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
 export interface TicketListItemVO {
   id: ApiId
-  ticketNo: string
+  ticketNo?: string
   title: string
   categoryName?: string
   priority: TicketPriority
@@ -31,6 +31,9 @@ export interface TicketListItemVO {
 
 export interface TicketVO extends TicketListItemVO {
   description: string
+  resolutionSummary?: string
+  resolutionSteps?: string
+  resolutionVerified: boolean
   categoryId?: ApiId
   creatorId: ApiId
   assigneeId?: ApiId
@@ -54,3 +57,35 @@ export type TicketAction =
   | 'reopen'
   | 'close'
   | 'cancel'
+
+export interface TicketCategoryVO {
+  id: ApiId
+  parentId?: ApiId
+  name: string
+  defaultTeamId?: ApiId
+  defaultTeamName?: string
+  defaultSlaHours?: number
+  sort?: number
+  enabled: boolean
+  createdAt?: string
+  updatedAt?: string
+  children?: TicketCategoryVO[]
+}
+
+export interface TicketOperationLogVO {
+  id: ApiId
+  ticketId: ApiId
+  operationType: string
+  fromStatus?: TicketStatus
+  toStatus?: TicketStatus
+  operatorId: ApiId
+  operatorName?: string
+  content?: string
+  requestIp?: string
+  userAgent?: string
+  createdAt: string
+}
+
+export interface TicketWatchVO {
+  watching: boolean
+}
