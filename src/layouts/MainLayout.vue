@@ -30,7 +30,10 @@ async function handleLogout() {
           </el-badge>
           <el-dropdown>
             <button class="main-layout__user" type="button">
-              <el-icon><User /></el-icon>
+              <!-- 复用当前登录用户资料中的头像；图片加载失败时回退用户图标。 -->
+              <el-avatar :size="32" :src="authStore.currentUser?.avatarUrl" class="main-layout__avatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
               <span>{{ displayName }}</span>
               <el-icon><ArrowDown /></el-icon>
             </button>
@@ -89,6 +92,12 @@ async function handleLogout() {
   color: var(--ops-text-primary);
   cursor: pointer;
   font: inherit;
+}
+
+.main-layout__avatar {
+  flex: 0 0 auto;
+  background: var(--el-color-primary-light-7);
+  color: var(--el-color-primary);
 }
 
 .main-layout__content {

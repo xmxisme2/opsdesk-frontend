@@ -19,6 +19,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
       },
+      // 自定义头像由后端静态资源映射提供；开发环境需代理，避免浏览器误向 Vite 请求图片。
+      '/uploads': {
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+      },
     },
   },
   build: {
