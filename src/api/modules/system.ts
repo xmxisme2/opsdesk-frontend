@@ -1,7 +1,7 @@
 import { post } from '@/api/http'
 import type { ApiId } from '@/types/api'
 import type { AiSettings } from '@/types/ai'
-import type { NotificationTemplateVO, PriorityOption, SlaRuleMutationRequest, SlaRuleVO, UploadPolicy } from '@/types/system'
+import type { EmailNotificationSettings, NotificationTemplateVO, PriorityOption, SlaRuleMutationRequest, SlaRuleVO, UploadPolicy } from '@/types/system'
 
 // 系统配置 API 负责 SLA、上传、通知和 AI 开关等后台配置，变更必须由后端记录审计日志。
 export function searchSystemConfigs(data: { group?: string; keyword?: string }) {
@@ -32,6 +32,17 @@ export function getUploadPolicy() {
 
 export function updateUploadPolicy(data: UploadPolicy) {
   return post<UploadPolicy>('/system/upload-policy/update', data)
+}
+
+// 邮件通知开启后，后端统一将通知投递至 defaultRecipient；SMTP 凭据仍仅由服务端环境配置提供。
+export function getEmailNotificationSettings() {
+  return post<EmailNotificationSettings>('/system/email-notification-settings/detail')
+}
+
+export function updateEmailNotificationSettings(data: EmailNotificationSettings) {
+  return post<EmailNotificationSettings>('/system/email-notification-settings/update', data, {
+    dedupe: 'ignore-current', dedupeKey: 'system:email-notification-settings:update',
+  })
 }
 
 // 通知模板 API 仅维护现有模板，类型与渠道由初始化数据确定，页面不可擅自新增外部发送渠道。

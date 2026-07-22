@@ -9,6 +9,12 @@ export interface UploadPolicy {
   downloadOnlyExtensions: string[]
 }
 
+/** 邮件通知配置：开启后所有邮件统一投递到默认收件邮箱。 */
+export interface EmailNotificationSettings {
+  enabled: boolean
+  defaultRecipient: string
+}
+
 export interface NotificationTemplateVO {
   id: ApiId
   type: 'TICKET_ASSIGNED' | 'TICKET_COMMENTED' | 'TICKET_STATUS_CHANGED' | 'TICKET_OVERDUE' | 'TICKET_CLOSED'

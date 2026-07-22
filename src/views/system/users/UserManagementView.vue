@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   CirclePlus,
+  CircleCheck,
   Delete,
   Edit,
   Refresh,
@@ -23,6 +24,7 @@ import {
   updateUser,
   updateUserRoles,
   updateUserStatus,
+  unlockUser,
 } from '@/api/modules/users'
 import PageHeader from '@/components/common/PageHeader.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -420,6 +422,18 @@ async function changeStatus(row: UserVO, status: UserStatus) {
   await loadUsers()
 }
 
+// 系统自动锁定与管理员主动调整状态分开呈现，避免误将“启用”理解为解除风控锁定。
+async function confirmUnlockUser(row: UserVO) {
+  await ElMessageBox.confirm(
+    `确认解除“${displayUserName(row)}”的账号锁定？系统会清理该账号的连续登录失败计数。`,
+    '解除账号锁定',
+    { confirmButtonText: '解除锁定', cancelButtonText: '取消', type: 'warning' },
+  )
+  await unlockUser(row.id)
+  ElMessage.success('账号锁定已解除')
+  await loadUsers()
+}
+
 function handleStatusCommand(row: UserVO, command: string | number | object) {
   changeStatus(row, command as UserStatus)
 }
@@ -597,7 +611,7 @@ onBeforeUnmount(() => {
         <el-table-column label="更新时间" min-width="150">
           <template #default="{ row }: { row: UserVO }">{{ formatDateTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="154" fixed="right">
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }: { row: UserVO }">
             <!-- 统一圆形操作组的尺寸与间距，避免下拉触发器和普通按钮出现基线不齐。 -->
             <div class="user-actions">
@@ -622,6 +636,16 @@ onBeforeUnmount(() => {
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
+              </el-tooltip>
+              <el-tooltip :content="row.status === 'LOCKED' ? '解除账号锁定' : '仅锁定账号可解除'">
+                <el-button
+                  :icon="CircleCheck"
+                  circle
+                  plain
+                  type="success"
+                  :disabled="row.status !== 'LOCKED' || isCurrentUser(row)"
+                  @click="confirmUnlockUser(row)"
+                />
               </el-tooltip>
               <el-tooltip :content="isCurrentUser(row) ? '不能删除当前登录账号' : '删除用户'">
                 <el-button :icon="Delete" circle plain type="danger" :disabled="isCurrentUser(row)" @click="confirmDeleteUser(row)" />

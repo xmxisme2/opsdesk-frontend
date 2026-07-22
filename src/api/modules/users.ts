@@ -33,6 +33,11 @@ export function updateUserStatus(id: ApiId, status: UserStatus, reason?: string)
   return post<UserVO>(`/users/${id}/status`, data, { dedupe: 'ignore-current', dedupeKey: `users:${id}:status` })
 }
 
+// 管理员解除系统自动锁定时由后端同时清理该账号的连续登录失败计数。
+export function unlockUser(id: ApiId) {
+  return post<UserVO>(`/users/${id}/unlock`, undefined, { dedupe: 'ignore-current', dedupeKey: `users:${id}:unlock` })
+}
+
 export function updateUserRoles(id: ApiId, roleIds: ApiId[]) {
   return post<UserVO>(`/users/${id}/roles/update`, { roleIds }, { dedupe: 'ignore-current', dedupeKey: `users:${id}:roles` })
 }

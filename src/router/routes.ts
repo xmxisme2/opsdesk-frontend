@@ -152,6 +152,12 @@ export const routes: RouteRecordRaw[] = [
             meta: { title: '通知模板', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
           },
           {
+            path: 'config/email-notification-settings',
+            name: 'system-email-notification-settings',
+            component: () => import('@/views/system/config/EmailNotificationSettingsPanel.vue'),
+            meta: { title: '邮件通知配置', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
+          },
+          {
             path: 'config/ai-settings',
             name: 'system-config-ai-settings',
             component: () => import('@/views/system/config/AiSettingsPanel.vue'),

@@ -124,6 +124,8 @@ const actionForm = reactive({
   resolutionSummary: '',
   resolutionSteps: '',
   resolutionVerified: true,
+  completionTempToken: '',
+  completionFiles: [] as FileVO[],
 })
 
 const commentForm = reactive({
@@ -258,6 +260,8 @@ function resetActionForm(action: TicketAction) {
     resolutionSummary: '',
     resolutionSteps: '',
     resolutionVerified: true,
+    completionTempToken: '',
+    completionFiles: [],
   })
   if (usesTeamMemberPicker(action) && actionForm.teamId) {
     void loadTeamMembers()
@@ -343,6 +347,7 @@ async function executeAction() {
           resolutionSummary: actionForm.resolutionSummary.trim(),
           resolutionSteps: actionForm.resolutionSteps.trim(),
           resolutionVerified: actionForm.resolutionVerified,
+          attachmentIds: actionForm.completionFiles.map((file) => file.id),
         })
         break
       case 'confirm':
@@ -441,6 +446,35 @@ async function removeCommentAttachment(file: FileVO) {
   await deleteFile(file.id)
   commentForm.files = commentForm.files.filter((item) => item.id !== file.id)
   ElMessage.success('附件已移除')
+}
+
+/** 完成工单前先上传为临时附件，确认完成时由后端校验归属后统一绑定。 */
+async function uploadCompletionAttachment(options: UploadRequestOptions) {
+  try {
+    const file = await uploadFile({
+      bizType: 'TICKET',
+      tempToken: ensureCompletionTempToken(),
+      file: options.file,
+    })
+    actionForm.completionFiles.push(file)
+    options.onSuccess(file)
+    ElMessage.success('完成附件已上传')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '完成附件上传失败')
+    options.onError(error as never)
+  }
+}
+
+async function removeCompletionAttachment(file: FileVO) {
+  await deleteFile(file.id, '移除完成工单附件')
+  actionForm.completionFiles = actionForm.completionFiles.filter((item) => item.id !== file.id)
+}
+
+function ensureCompletionTempToken() {
+  if (!actionForm.completionTempToken) {
+    actionForm.completionTempToken = `ticket-complete-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+  return actionForm.completionTempToken
 }
 
 function resetCommentForm() {
@@ -851,6 +885,16 @@ onBeforeUnmount(clearPreviewImageUrl)
           <el-input v-model="actionForm.reason" type="textarea" :rows="4" maxlength="500" show-word-limit />
         </el-form-item>
         <template v-if="needsRemark">
+          <el-form-item label="完成附件（可选）">
+            <el-upload :show-file-list="false" :http-request="uploadCompletionAttachment">
+              <el-button :icon="Paperclip">上传附件</el-button>
+            </el-upload>
+            <div v-if="actionForm.completionFiles.length" class="ticket-detail-page__comment-uploaded">
+              <el-tag v-for="file in actionForm.completionFiles" :key="file.id" closable @close="removeCompletionAttachment(file)">
+                {{ file.fileName }}
+              </el-tag>
+            </div>
+          </el-form-item>
           <el-form-item label="解决方案摘要" required>
             <el-input
               v-model="actionForm.resolutionSummary"

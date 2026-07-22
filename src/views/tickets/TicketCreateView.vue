@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ArrowLeft, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
-import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadFiles, type UploadUserFile } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadFiles, type UploadRequestOptions, type UploadUserFile, type UploadInstance } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -12,7 +12,7 @@ import {
   updateTicket,
   type TicketMutationRequest,
 } from '@/api/modules/tickets'
-import { uploadFile } from '@/api/modules/files'
+import { deleteFile, uploadFile } from '@/api/modules/files'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useDictionariesStore } from '@/stores/modules/dictionaries'
 import { selectablePriorityOptions } from '@/utils/priority-options'
@@ -39,13 +39,19 @@ const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const formRef = ref<FormInstance>()
 const categories = ref<TicketCategoryVO[]>([])
 const fileList = ref<UploadUserFile[]>([])
+const uploadRef = ref<UploadInstance>()
 const loading = ref(false)
 const saving = ref(false)
 const uploading = ref(false)
 const existingTicket = ref<TicketVO | null>(null)
+const ticketAttachmentIds = ref<ApiId[]>([])
+const ticketAttachmentTempToken = ref('')
 
 const draftId = computed(() => (typeof route.query.id === 'string' ? route.query.id : undefined))
 const isEditing = computed(() => Boolean(draftId.value))
+// 附件上传尚未结束或失败时禁止提交，确保创建/编辑请求只携带可绑定的临时附件。
+const hasUploadingAttachments = computed(() => fileList.value.some((file) => file.status === 'uploading' || file.status === 'ready'))
+const hasFailedAttachments = computed(() => fileList.value.some((file) => file.status === 'fail'))
 const pageTitle = computed(() => (isEditing.value ? '编辑工单草稿' : '创建工单'))
 
 const form = reactive<TicketFormModel>({
@@ -85,6 +91,13 @@ async function loadPage() {
         return
       }
       existingTicket.value = ticket
+      ticketAttachmentIds.value = []
+      fileList.value = ticket.attachments.map((attachment) => ({
+        name: attachment.fileName,
+        uid: Number(attachment.id),
+        status: 'success',
+        response: attachment,
+      }))
       Object.assign(form, {
         title: ticket.title,
         description: ticket.description,
@@ -130,27 +143,54 @@ function buildPayload(): TicketMutationRequest {
     priority: form.priority,
     dueTime: form.dueTime || undefined,
     tags: form.tags.map((tag) => tag.trim()).filter(Boolean),
+    attachmentIds: ticketAttachmentIds.value,
   }
 }
 
-async function uploadSelectedFiles(ticketId: ApiId) {
-  const rawFiles = fileList.value.flatMap((file) => (file.raw ? [file.raw] : []))
-  if (!rawFiles.length) {
-    return
+function ensureTicketAttachmentTempToken() {
+  if (!ticketAttachmentTempToken.value) {
+    ticketAttachmentTempToken.value = `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   }
+  return ticketAttachmentTempToken.value
+}
+
+async function uploadTicketAttachment(options: UploadRequestOptions) {
   uploading.value = true
   try {
-    for (const file of rawFiles) {
-      await uploadFile({ bizType: 'TICKET', bizId: ticketId, file })
-    }
-  } catch {
-    ElMessage.warning('工单已保存，但部分附件上传失败，可在详情页继续上传')
+    const attachment = await uploadFile({ bizType: 'TICKET', tempToken: ensureTicketAttachmentTempToken(), file: options.file })
+    ticketAttachmentIds.value.push(attachment.id)
+    options.onSuccess(attachment)
+  } catch (error) {
+    ElMessage.warning('附件上传失败，请重试或移除后再保存或提交')
+    options.onError(error as never)
   } finally {
     uploading.value = false
   }
 }
 
+async function removeTicketAttachment(file: UploadFile) {
+  const attachment = file.response as { id?: ApiId } | undefined
+  if (!attachment?.id) return
+  await deleteFile(attachment.id, '创建或编辑工单时移除附件')
+  ticketAttachmentIds.value = ticketAttachmentIds.value.filter((id) => id !== attachment.id)
+}
+
+function retryFailedAttachments() {
+  fileList.value.forEach((file) => {
+    if (file.status === 'fail') file.status = 'ready'
+  })
+  uploadRef.value?.submit()
+}
+
 async function saveTicket(submitNow: boolean) {
+  if (hasUploadingAttachments.value) {
+    ElMessage.warning('附件正在上传，请等待全部上传完成后再保存或提交')
+    return
+  }
+  if (hasFailedAttachments.value) {
+    ElMessage.warning('存在上传失败的附件，请重试或移除后再保存或提交')
+    return
+  }
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) {
     return
@@ -167,7 +207,6 @@ async function saveTicket(submitNow: boolean) {
     } else {
       ticket = await createTicket({ ...buildPayload(), submitNow })
     }
-    await uploadSelectedFiles(ticket.id)
     ElMessage.success(submitNow ? '工单已提交' : '草稿已保存')
     router.push(submitNow ? `/tickets/${ticket.id}` : { path: '/tickets/create', query: { id: ticket.id } })
   } finally {
@@ -246,12 +285,14 @@ onMounted(loadPage)
 
           <el-form-item label="附件">
             <el-upload
+              ref="uploadRef"
               v-model:file-list="fileList"
               drag
               multiple
-              :auto-upload="false"
+              :http-request="uploadTicketAttachment"
               :limit="MAX_FILE_COUNT"
               :on-change="handleFileChange"
+              :on-remove="removeTicketAttachment"
               accept=".jpg,.jpeg,.png,.pdf,.docx,.xlsx,.txt,.log,.zip"
               class="ticket-create-page__upload"
             >
@@ -261,6 +302,9 @@ onMounted(loadPage)
                 <div class="el-upload__tip">单文件最大 20MB，最多 10 个；图片和文本可预览，其余文件提供下载。</div>
               </template>
             </el-upload>
+            <el-button v-if="hasFailedAttachments" type="warning" plain size="small" @click="retryFailedAttachments">
+              重试失败附件
+            </el-button>
           </el-form-item>
         </el-form>
 
