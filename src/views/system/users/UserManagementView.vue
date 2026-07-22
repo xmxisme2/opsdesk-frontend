@@ -4,7 +4,6 @@ import {
   CirclePlus,
   Delete,
   Edit,
-  Key,
   Refresh,
   RefreshRight,
   Search,
@@ -482,10 +481,6 @@ function departmentName(id?: ApiId) {
   return departmentOptions.value.find((item) => item.value === id)?.label.trim() ?? '-'
 }
 
-function roleText(row: UserVO) {
-  return row.roles.map((role) => role.code).join(' / ') || '-'
-}
-
 function statusTagType(status: UserStatus) {
   return statusTagTypes[status] ?? 'info'
 }
@@ -602,33 +597,32 @@ onBeforeUnmount(() => {
         <el-table-column label="更新时间" min-width="150">
           <template #default="{ row }: { row: UserVO }">{{ formatDateTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="188" fixed="right">
+        <el-table-column label="操作" width="154" fixed="right">
           <template #default="{ row }: { row: UserVO }">
             <!-- 统一圆形操作组的尺寸与间距，避免下拉触发器和普通按钮出现基线不齐。 -->
             <div class="user-actions">
               <el-tooltip content="编辑用户">
                 <el-button :icon="Edit" circle plain type="primary" @click="openEditDrawer(row)" />
               </el-tooltip>
-              <el-tooltip :content="`角色：${roleText(row)}`">
-                <el-button :icon="Key" circle plain type="primary" @click="openEditDrawer(row)" />
-              </el-tooltip>
               <el-tooltip content="重置密码">
                 <el-button :icon="RefreshRight" circle plain type="warning" @click="openResetDialog(row)" />
               </el-tooltip>
-              <el-dropdown class="user-actions__status" trigger="click" @command="handleStatusCommand(row, $event)">
-                <el-button :icon="SwitchButton" circle plain type="primary" />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="ACTIVE" :disabled="row.status === 'ACTIVE'">启用</el-dropdown-item>
-                    <el-dropdown-item command="DISABLED" :disabled="row.status === 'DISABLED' || isCurrentUser(row)">
-                      停用
-                    </el-dropdown-item>
-                    <el-dropdown-item command="LOCKED" :disabled="row.status === 'LOCKED' || isCurrentUser(row)">
-                      锁定
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              <el-tooltip content="调整账号状态">
+                <el-dropdown class="user-actions__status" trigger="click" @command="handleStatusCommand(row, $event)">
+                  <el-button :icon="SwitchButton" circle plain type="primary" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="ACTIVE" :disabled="row.status === 'ACTIVE'">启用</el-dropdown-item>
+                      <el-dropdown-item command="DISABLED" :disabled="row.status === 'DISABLED' || isCurrentUser(row)">
+                        停用
+                      </el-dropdown-item>
+                      <el-dropdown-item command="LOCKED" :disabled="row.status === 'LOCKED' || isCurrentUser(row)">
+                        锁定
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </el-tooltip>
               <el-tooltip :content="isCurrentUser(row) ? '不能删除当前登录账号' : '删除用户'">
                 <el-button :icon="Delete" circle plain type="danger" :disabled="isCurrentUser(row)" @click="confirmDeleteUser(row)" />
               </el-tooltip>
