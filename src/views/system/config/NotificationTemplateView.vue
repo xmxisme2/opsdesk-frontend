@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { searchNotificationTemplates, updateNotificationTemplate } from '@/api/modules/system'
 import PageHeader from '@/components/common/PageHeader.vue'
 import type { NotificationTemplateVO } from '@/types/system'
 
 const loading = ref(false), saving = ref(false), errorMessage = ref('')
+const router = useRouter()
 const templates = ref<NotificationTemplateVO[]>([])
 const selectedId = ref('')
 const keyword = ref('')
@@ -45,7 +47,7 @@ onMounted(loadTemplates)
   <!-- 对齐 Figma 65:286 的左侧模板列表与右侧编辑表单；发送测试不在当前 API 契约内，因此不扩展外部发送行为。 -->
   <section class="page-stack template-page" v-loading="loading">
     <PageHeader title="通知模板配置" description="站内通知 P1，邮件和实时推送为增强能力">
-      <template #actions><el-input v-model="keyword" clearable placeholder="搜索关键词" class="search-input" /><el-tag>v1.0 + 增强</el-tag><el-button :icon="Refresh" @click="loadTemplates">刷新</el-button></template>
+      <template #actions><el-button :icon="ArrowLeft" @click="router.push('/system/config')">返回系统配置</el-button><el-input v-model="keyword" clearable placeholder="搜索关键词" class="search-input" /><el-tag>v1.0 + 增强</el-tag><el-button :icon="Refresh" @click="loadTemplates">刷新</el-button></template>
     </PageHeader>
     <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon><template #default><el-button link type="primary" @click="loadTemplates">重新加载</el-button></template></el-alert>
     <div class="template-layout">

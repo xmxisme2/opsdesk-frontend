@@ -30,7 +30,6 @@ export const APP_MENUS: MenuConfig[] = [
       { title: '部门与团队', path: '/system/organization', icon: 'OfficeBuilding' },
       { title: '工单分类与优先级', path: '/system/ticket-categories', icon: 'FolderOpened' },
       { title: '系统配置', path: '/system/config', icon: 'Tools' },
-      { title: '通知模板', path: '/system/config/notification-templates', icon: 'Message' },
       { title: '操作日志', path: '/system/audit-logs', icon: 'List' },
       { title: 'AI 调用日志与开关', path: '/system/ai-settings', icon: 'Connection', feature: 'ai' },
     ],

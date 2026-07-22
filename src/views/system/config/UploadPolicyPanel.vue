@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getUploadPolicy, updateUploadPolicy } from '@/api/modules/system'
 import PageHeader from '@/components/common/PageHeader.vue'
@@ -11,6 +12,7 @@ const safePreviewExtensions = new Set(['jpg', 'jpeg', 'png', 'txt', 'log'])
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
+const router = useRouter()
 const form = reactive<UploadPolicy>({ maxFileSizeMb: 20, maxFilesPerTicket: 10, allowedExtensions: [], previewableExtensions: [], downloadOnlyExtensions: [] })
 
 // 上传策略页面与后端文件签名能力使用同一扩展名集合，禁止通过配置开放未经校验的格式。
@@ -54,7 +56,7 @@ onMounted(loadPolicy)
   <!-- Figma 仅定义系统配置框架，本页按需求补齐可操作表单，并沿用同一页面面板、间距和按钮层级。 -->
   <section class="page-stack upload-policy-page" v-loading="loading">
     <PageHeader title="上传限制配置" description="统一控制附件大小、数量、允许格式及预览方式">
-      <template #actions><el-button :icon="Refresh" @click="loadPolicy">刷新</el-button><el-button type="primary" :loading="saving" @click="savePolicy">保存配置</el-button></template>
+      <template #actions><el-button :icon="ArrowLeft" @click="router.push('/system/config')">返回系统配置</el-button><el-button :icon="Refresh" @click="loadPolicy">刷新</el-button><el-button type="primary" :loading="saving" @click="savePolicy">保存配置</el-button></template>
     </PageHeader>
     <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon><template #default><el-button link type="primary" @click="loadPolicy">重新加载</el-button></template></el-alert>
     <section class="page-panel policy-panel">

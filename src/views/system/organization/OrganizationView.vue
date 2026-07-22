@@ -358,10 +358,11 @@ onMounted(refreshAll)
           <template #default="{ data }: { data: DepartmentVO }">
             <div class="department-tree__node">
               <span>{{ data.name }}</span>
+              <!-- 树节点和团队表格复用同一圆形操作规范，按钮尺寸与间距保持稳定。 -->
               <span class="department-tree__actions">
-                <el-button text size="small" :icon="CirclePlus" @click.stop="openCreateDepartment(data)" />
-                <el-button text size="small" :icon="Edit" @click.stop="openEditDepartment(data)" />
-                <el-button text size="small" type="danger" :icon="Delete" @click.stop="confirmDeleteDepartment(data)" />
+                <el-tooltip content="新增子部门"><el-button circle plain size="small" :icon="CirclePlus" @click.stop="openCreateDepartment(data)" /></el-tooltip>
+                <el-tooltip content="编辑部门"><el-button circle plain size="small" type="primary" :icon="Edit" @click.stop="openEditDepartment(data)" /></el-tooltip>
+                <el-tooltip content="删除部门"><el-button circle plain size="small" type="danger" :icon="Delete" @click.stop="confirmDeleteDepartment(data)" /></el-tooltip>
               </span>
             </div>
           </template>
@@ -415,10 +416,12 @@ onMounted(refreshAll)
                 <el-tag :type="row.enabled ? 'success' : 'danger'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column label="操作" width="92" fixed="right">
               <template #default="{ row }: { row: TeamVO }">
-                <el-button text type="primary" :icon="Edit" @click="openEditTeam(row)" />
-                <el-button text type="danger" :icon="Delete" @click="confirmDeleteTeam(row)" />
+                <div class="team-actions">
+                  <el-tooltip content="编辑团队"><el-button circle plain type="primary" :icon="Edit" @click="openEditTeam(row)" /></el-tooltip>
+                  <el-tooltip content="删除团队"><el-button circle plain type="danger" :icon="Delete" @click="confirmDeleteTeam(row)" /></el-tooltip>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -559,7 +562,23 @@ onMounted(refreshAll)
 
 .department-tree__actions {
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
+}
+
+.department-tree__actions :deep(.el-button),
+.team-actions :deep(.el-button) {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+}
+
+.team-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .team-filters {

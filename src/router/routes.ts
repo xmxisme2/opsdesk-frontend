@@ -149,7 +149,7 @@ export const routes: RouteRecordRaw[] = [
             path: 'config/notification-templates',
             name: 'system-notification-templates',
             component: () => import('@/views/system/config/NotificationTemplateView.vue'),
-            meta: { title: '通知模板', requiresAuth: true, roles: ['ADMIN'] },
+            meta: { title: '通知模板', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
           },
           {
             path: 'config/ai-settings',

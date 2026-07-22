@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { CirclePlus, Delete, Edit, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, CirclePlus, Delete, Edit, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import { createSlaRule, deleteSlaRule, searchSlaRules, updateSlaRule } from '@/api/modules/system'
 import { getTicketCategoryTree } from '@/api/modules/tickets'
 import DataTable from '@/components/common/DataTable.vue'
@@ -27,6 +28,7 @@ const categories = ref<TicketCategoryVO[]>([])
 const filter = reactive<{ categoryId?: ApiId; priority?: TicketPriority; enabled?: boolean }>({})
 const form = reactive<SlaForm>({ categoryId: '', priority: 'MEDIUM', responseHours: 4, resolveHours: 24, enabled: true })
 const dictionariesStore = useDictionariesStore()
+const router = useRouter()
 const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const filterPriorityOptions = computed(() => enabledPriorityOptions(ticketPriorityOptions.value))
 // 编辑旧规则时保留当前停用优先级用于回显，但不允许新增规则选择停用项。
@@ -85,7 +87,7 @@ onMounted(() => Promise.allSettled([loadCategories(), loadRules(), dictionariesS
   <!-- 对齐 Figma 64:1049 的系统配置内容区，SLA 规则采用列表维护以覆盖多分类和优先级组合。 -->
   <section class="page-stack sla-page">
     <PageHeader title="SLA 规则配置" description="维护分类与优先级对应的响应、解决时限；配置只影响后续工单">
-      <template #actions><el-button :icon="Refresh" @click="loadRules">刷新</el-button><el-button type="primary" :icon="CirclePlus" @click="openCreate">新增规则</el-button></template>
+      <template #actions><el-button :icon="ArrowLeft" @click="router.push('/system/config')">返回系统配置</el-button><el-button :icon="Refresh" @click="loadRules">刷新</el-button><el-button type="primary" :icon="CirclePlus" @click="openCreate">新增规则</el-button></template>
     </PageHeader>
     <section class="page-panel sla-filters">
       <el-select v-model="filter.categoryId" clearable placeholder="全部分类" @change="loadRules"><el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" /></el-select>
