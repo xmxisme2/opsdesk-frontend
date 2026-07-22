@@ -12,7 +12,7 @@ const formRef = ref<FormInstance>()
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
-const form = reactive<EmailNotificationSettings>({ enabled: false, defaultRecipient: 'xmxisme@gmail.com' })
+const form = reactive<EmailNotificationSettings>({ enabled: false, defaultRecipient: 'sean.siu@astralotus.com' })
 const rules: FormRules<EmailNotificationSettings> = {
   defaultRecipient: [
     { required: true, message: '请填写默认收件邮箱', trigger: 'blur' },
@@ -57,12 +57,12 @@ onMounted(loadSettings)
     <section class="page-panel settings-panel">
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @submit.prevent>
         <el-form-item label="启用邮件通知">
-          <el-switch v-model="form.enabled" active-text="开启" inactive-text="关闭" />
-          <p class="hint">开启后，系统会在成功创建站内通知后发送邮件；发送异常不会影响站内通知。</p>
+          <el-switch v-model="form.enabled" active-text="开启" inactive-text="关闭" disabled />
+          <p class="hint">邮件开关由后端 application.yml 的 `opsdesk.email-notification.enabled` 管理；发送异常不会影响站内通知。</p>
         </el-form-item>
         <el-form-item label="默认收件邮箱" prop="defaultRecipient">
           <el-input v-model="form.defaultRecipient" maxlength="128" placeholder="请输入接收通知的邮箱" />
-          <p class="hint">当前默认值为 xmxisme@gmail.com。开关开启时，所有邮件均投递到此邮箱。</p>
+          <p class="hint">当前默认值为 sean.siu@astralotus.com。开关开启时，所有邮件均投递到此邮箱。</p>
         </el-form-item>
         <el-alert title="SMTP 服务器账号由后端环境变量配置；未配置 SMTP 时邮件会被安全跳过，并保留站内通知。" type="info" :closable="false" show-icon />
       </el-form>
