@@ -35,9 +35,8 @@ defineEmits<{
       <el-table :data="records" row-key="id" class="ticket-table">
         <el-table-column label="编号" min-width="150">
           <template #default="{ row }">
-            <el-button type="primary" link @click="$emit('detail', row)">
-              {{ row.ticketNo || '草稿' }}
-            </el-button>
+            <!-- 编号为可选择文本，支持鼠标左键拖选复制；查看详情统一由操作列承接。 -->
+            <span class="ticket-table__number">{{ row.ticketNo || '草稿' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="title" label="标题" min-width="190" show-overflow-tooltip />
@@ -98,6 +97,13 @@ defineEmits<{
 
 .ticket-table {
   min-width: 1080px;
+}
+
+/* 工单编号属于高频沟通信息，必须允许用户按住左键拖选并复制。 */
+.ticket-table__number {
+  color: var(--ops-primary-color);
+  cursor: text;
+  user-select: text;
 }
 
 .ticket-table__due--danger {
