@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { CirclePlus, Refresh, Search } from '@element-plus/icons-vue'
+import { CirclePlus, Download, Refresh, Search } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { getTicketCategoryTree, searchTickets } from '@/api/modules/tickets'
+import { exportTickets, getTicketCategoryTree, searchTickets } from '@/api/modules/tickets'
 import { searchTeams } from '@/api/modules/teams'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TicketTable from '@/components/business/TicketTable.vue'
 import { TICKET_STATUS_OPTIONS } from '@/constants/ticket'
 import { useDictionariesStore } from '@/stores/modules/dictionaries'
+import { useAuthStore } from '@/stores/modules/auth'
 import { enabledPriorityOptions } from '@/utils/priority-options'
 import { createDebouncedFn } from '@/utils/debounce'
 import { resolveTicketRouteQuery } from '@/utils/ticket-route-query'
@@ -19,14 +20,18 @@ import type { TicketCategoryVO, TicketListItemVO, TicketPriority, TicketStatus }
 const router = useRouter()
 const route = useRoute()
 const dictionariesStore = useDictionariesStore()
+const authStore = useAuthStore()
 const { ticketPriorityOptions } = storeToRefs(dictionariesStore)
 const loading = ref(false)
+const exporting = ref(false)
 const error = ref('')
 const records = ref<TicketListItemVO[]>([])
 const total = ref(0)
 const categories = ref<TicketCategoryVO[]>([])
 const teams = ref<TeamVO[]>([])
 const priorityOptions = computed(() => enabledPriorityOptions(ticketPriorityOptions.value))
+// 导出入口与后端 MANAGER/ADMIN 权限保持一致，避免普通用户触发无效请求。
+const canExport = computed(() => authStore.hasRole(['MANAGER', 'ADMIN']))
 
 const query = reactive({
   page: 1,
@@ -119,6 +124,30 @@ function editDraft(ticket: TicketListItemVO) {
   router.push({ path: '/tickets/create', query: { id: ticket.id } })
 }
 
+/** 导出时沿用列表的所有筛选项，文件名以当前日期区分，避免覆盖用户已下载的历史文件。 */
+async function exportCurrentTickets() {
+  exporting.value = true
+  try {
+    const blob = await exportTickets({
+      ticketNo: query.ticketNo.trim() || undefined,
+      keyword: query.keyword.trim() || undefined,
+      status: query.status,
+      priority: query.priority,
+      categoryId: query.categoryId,
+      teamId: query.teamId,
+      overdue: query.overdue,
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `工单导出_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    exporting.value = false
+  }
+}
+
 // 看板搜索和外部直达链接通过查询参数传入筛选条件，列表初始化和同页跳转均需同步。
 function syncRouteQuery() {
   const routeQuery = resolveTicketRouteQuery(route.query)
@@ -148,6 +177,7 @@ onBeforeUnmount(() => debouncedSearch.cancel())
     <PageHeader title="工单列表" description="按编号、标题、状态、优先级、分类和团队快速定位工单">
       <template #actions>
         <el-button :icon="Refresh" @click="loadTickets">刷新</el-button>
+        <el-button v-if="canExport" :icon="Download" :loading="exporting" @click="exportCurrentTickets">导出</el-button>
         <el-button type="primary" :icon="CirclePlus" @click="router.push('/tickets/create')">创建工单</el-button>
       </template>
     </PageHeader>

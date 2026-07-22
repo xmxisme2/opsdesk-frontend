@@ -1,4 +1,4 @@
-import { post } from '@/api/http'
+import { post, postBlob } from '@/api/http'
 import type { ApiId, PageRequest, PageResult } from '@/types/api'
 import type {
   TicketCategoryVO,
@@ -94,6 +94,14 @@ export function searchTickets(data: TicketSearchRequest) {
   return post<PageResult<TicketListItemVO>>('/tickets/search', data, {
     dedupe: 'cancel-previous',
     dedupeKey: `tickets:search:${data.scope ?? 'all'}`,
+  })
+}
+
+/** 按工单列表的当前筛选条件下载 XLSX，权限和数据范围以后端校验为准。 */
+export function exportTickets(data: Omit<TicketSearchRequest, 'page' | 'size'>) {
+  return postBlob('/tickets/export', { ...data, format: 'xlsx' }, {
+    dedupe: 'ignore-current',
+    dedupeKey: 'tickets:export',
   })
 }
 
