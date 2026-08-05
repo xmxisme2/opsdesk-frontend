@@ -1,7 +1,7 @@
 import { post } from '@/api/http'
 import { getAccessToken } from '@/utils/auth-token'
 import type { ApiId, PageRequest, PageResult } from '@/types/api'
-import type { AiCallLogVO, RagStreamEventMap, RagStreamEventName } from '@/types/ai'
+import type { AiCallLogVO, AiConversationDetailVO, AiConversationVO, RagStreamEventMap, RagStreamEventName } from '@/types/ai'
 
 // AI 当前仅保留预留接口；开关关闭时菜单隐藏，后端也必须返回明确禁用提示。
 export function getTicketAiSummary(id: ApiId, forceRefresh = false) {
@@ -14,6 +14,27 @@ export function getTicketAiSuggestion(id: ApiId) {
 
 export function searchAiCallLogs(data: PageRequest & { scene?: string; success?: boolean; dateFrom?: string; dateTo?: string }) {
   return post<PageResult<AiCallLogVO>>('/ai/call-logs/search', data)
+}
+
+/** 查询当前账号自己的有效会话，后端会强制执行所有者范围。 */
+export function searchAiConversations(data: PageRequest & { keyword?: string; archived?: boolean }) {
+  return post<PageResult<AiConversationVO>>('/ai/conversations/search', data)
+}
+
+export function getAiConversationDetail(id: ApiId) {
+  return post<AiConversationDetailVO>(`/ai/conversations/${id}/detail`, {})
+}
+
+export function archiveAiConversation(id: ApiId) {
+  return post<{ id: ApiId; status: string }>(`/ai/conversations/${id}/archive`, {})
+}
+
+export function deleteAiConversation(id: ApiId) {
+  return post<{ id: ApiId; status: string }>(`/ai/conversations/${id}/delete`, {})
+}
+
+export function submitAiFeedback(id: ApiId, data: { rating: 'UP' | 'DOWN'; reasonCode?: string; comment?: string }) {
+  return post<void>(`/ai/messages/${id}/feedback`, data)
 }
 
 export interface RagStreamHandlers {
@@ -36,6 +57,7 @@ function parseSseBlock(block: string, handlers: RagStreamHandlers) {
 /** 使用 fetch 读取 POST SSE，URL、鉴权与事件解析统一收口在 API 模块。 */
 export async function streamKnowledgeAnswer(
   question: string,
+  conversationId: ApiId | undefined,
   clientRequestId: string,
   handlers: RagStreamHandlers,
   signal: AbortSignal,
@@ -49,7 +71,7 @@ export async function streamKnowledgeAnswer(
       Accept: 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ question, clientRequestId }),
+    body: JSON.stringify({ question, conversationId, clientRequestId }),
     signal,
   })
   if (!response.ok || !response.body) {

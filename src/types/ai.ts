@@ -34,7 +34,7 @@ export interface RagReferenceVO {
 
 /** 流式问答事件负载，页面按事件名增量更新当前回答。 */
 export interface RagStreamEventMap {
-  metadata: { requestId: string }
+  metadata: { requestId: string; conversationId: ApiId; messageId: ApiId }
   references: { references: RagReferenceVO[] }
   token: { content: string; sequence: number }
   done: { generatedAt: string; insufficientEvidence: boolean; disclaimer: string }
@@ -42,3 +42,30 @@ export interface RagStreamEventMap {
 }
 
 export type RagStreamEventName = keyof RagStreamEventMap
+
+/** 当前用户自己的 AI 会话历史列表项。 */
+export interface AiConversationVO {
+  id: ApiId
+  title: string
+  status: 'ACTIVE' | 'ARCHIVED'
+  messageCount: number
+  lastMessageTime: string
+  createTime: string
+}
+
+/** 已持久化的 AI 会话消息。 */
+export interface AiMessageVO {
+  id: ApiId
+  role: 'USER' | 'ASSISTANT'
+  content: string
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+  insufficientEvidence: boolean
+  feedback?: 'UP' | 'DOWN'
+  createTime: string
+  references: RagReferenceVO[]
+}
+
+export interface AiConversationDetailVO {
+  conversation: AiConversationVO
+  messages: AiMessageVO[]
+}
