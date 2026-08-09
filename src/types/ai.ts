@@ -37,7 +37,7 @@ export interface RagStreamEventMap {
   metadata: { requestId: string; conversationId: ApiId; messageId: ApiId }
   references: { references: RagReferenceVO[] }
   token: { content: string; sequence: number }
-  done: { generatedAt: string; insufficientEvidence: boolean; disclaimer: string }
+  done: { generatedAt: string; insufficientEvidence: boolean; disclaimer: string; answer?: string }
   error: { code: number; message: string; traceId?: string; retryable: boolean }
 }
 

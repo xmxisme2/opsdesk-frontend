@@ -130,6 +130,11 @@ function handleStreamEvent(message: ChatMessage, event: RagStreamEventName, data
   if (event === 'token') message.content += (data as RagStreamEventMap['token']).content
   if (event === 'done') {
     const done = data as RagStreamEventMap['done']
+    // 证据不足时以后端最终判定为准，防御性清理旧服务或乱序事件留下的候选引用。
+    if (done.insufficientEvidence) {
+      message.references = []
+      if (done.answer) message.content = done.answer
+    }
     message.status = done.insufficientEvidence ? 'insufficient' : 'done'
   }
   if (event === 'error') {
