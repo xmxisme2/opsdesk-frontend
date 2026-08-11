@@ -69,3 +69,62 @@ export interface AiConversationDetailVO {
   conversation: AiConversationVO
   messages: AiMessageVO[]
 }
+
+/** AI 质量看板顶部聚合指标，比率字段均为百分数。 */
+export interface AiQualitySummaryVO {
+  totalCalls: number
+  successCalls: number
+  failedCalls: number
+  insufficientCalls: number
+  successRate: number
+  refusalRate: number
+  feedbackCount: number
+  upFeedbackCount: number
+  downFeedbackCount: number
+  positiveRate: number
+  averageDurationMs: number
+  p95DurationMs: number
+  averageReferenceCount: number
+}
+
+export interface AiQualityTrendVO {
+  date: string
+  totalCalls: number
+  successCalls: number
+  insufficientCalls: number
+  failedCalls: number
+  negativeFeedbackCount: number
+}
+
+export interface AiQualityDistributionVO {
+  name: string
+  value: number
+}
+
+export interface AiQualityOverviewVO {
+  dateFrom: string
+  dateTo: string
+  summary: AiQualitySummaryVO
+  trends: AiQualityTrendVO[]
+  resultDistribution: AiQualityDistributionVO[]
+  feedbackReasons: AiQualityDistributionVO[]
+}
+
+export type AiQualityResult = 'SUCCESS' | 'REFUSAL' | 'FAILED' | 'NEGATIVE'
+
+/** 管理员低质量样本，问题和回答均来自独立 AI 服务已脱敏消息。 */
+export interface AiQualitySampleVO {
+  callId: ApiId
+  conversationId?: ApiId
+  messageId?: ApiId
+  operatorId?: ApiId
+  question?: string
+  answer?: string
+  result: AiQualityResult
+  durationMs: number
+  referenceCount: number
+  rating?: 'UP' | 'DOWN'
+  reasonCode?: string
+  issueReason?: string
+  createTime: string
+}

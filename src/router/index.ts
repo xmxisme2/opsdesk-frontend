@@ -4,7 +4,8 @@ import { routes } from './routes'
 import { setupRouterGuards } from './guards'
 
 export const router = createRouter({
-  history: createWebHistory(),
+  // 使用 Vite 构建基路径，保证生产环境刷新 /opsdesk/* 路由时仍由同一 SPA 接管。
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   scrollBehavior: () => ({ top: 0 }),
 })

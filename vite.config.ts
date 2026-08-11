@@ -5,6 +5,8 @@ import { getVendorChunkName, isVendorChunkCandidate } from './src/build/chunking
 
 // 前端初始化阶段只配置 Vue 插件、路径别名和本地代理，真实联调等待后端工程启动后再补充。
 export default defineConfig({
+  // 生产环境部署在现有域名的 /opsdesk/ 子路径，本地开发仍使用根路径。
+  base: process.env.VITE_APP_BASE || '/',
   plugins: [vue()],
   resolve: {
     alias: {

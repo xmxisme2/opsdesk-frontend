@@ -167,7 +167,7 @@ export const routes: RouteRecordRaw[] = [
             path: 'ai-settings',
             name: 'system-ai-settings',
             component: () => import('@/views/system/ai/AiCallLogView.vue'),
-            meta: { title: 'AI 调用日志与开关', requiresAuth: true, roles: ['ADMIN'], feature: 'ai' },
+            meta: { title: 'AI 质量统计', requiresAuth: true, roles: ['ADMIN'], feature: 'ai' },
           },
         ],
       },

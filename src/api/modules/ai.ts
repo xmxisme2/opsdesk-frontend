@@ -1,7 +1,16 @@
 import { post } from '@/api/http'
 import { getAccessToken } from '@/utils/auth-token'
 import type { ApiId, PageRequest, PageResult } from '@/types/api'
-import type { AiCallLogVO, AiConversationDetailVO, AiConversationVO, RagStreamEventMap, RagStreamEventName } from '@/types/ai'
+import type {
+  AiCallLogVO,
+  AiConversationDetailVO,
+  AiConversationVO,
+  AiQualityOverviewVO,
+  AiQualityResult,
+  AiQualitySampleVO,
+  RagStreamEventMap,
+  RagStreamEventName,
+} from '@/types/ai'
 
 // AI 当前仅保留预留接口；开关关闭时菜单隐藏，后端也必须返回明确禁用提示。
 export function getTicketAiSummary(id: ApiId, forceRefresh = false) {
@@ -14,6 +23,22 @@ export function getTicketAiSuggestion(id: ApiId) {
 
 export function searchAiCallLogs(data: PageRequest & { scene?: string; success?: boolean; dateFrom?: string; dateTo?: string }) {
   return post<PageResult<AiCallLogVO>>('/ai/call-logs/search', data)
+}
+
+/** 查询 ADMIN 可见的 AI 质量总览，后端限制单次统计范围不超过 90 天。 */
+export function getAiQualityOverview(data: { dateFrom?: string; dateTo?: string }) {
+  return post<AiQualityOverviewVO>('/ai/admin/quality/overview', data, { dedupe: 'cancel-previous' })
+}
+
+/** 查询拒答、失败或被点踩的低质量样本。 */
+export function searchAiQualitySamples(data: PageRequest & {
+  dateFrom?: string
+  dateTo?: string
+  result?: AiQualityResult
+  reasonCode?: string
+  keyword?: string
+}) {
+  return post<PageResult<AiQualitySampleVO>>('/ai/admin/quality/samples/search', data, { dedupe: 'cancel-previous' })
 }
 
 /** 查询当前账号自己的有效会话，后端会强制执行所有者范围。 */
