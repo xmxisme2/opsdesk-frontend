@@ -438,17 +438,20 @@ onBeforeUnmount(() => {
           <el-table-column label="更新时间" min-width="150">
             <template #default="{ row }: { row: RoleVO }">{{ formatDateTime(row.updatedAt) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="136">
+          <el-table-column label="操作" width="132" fixed="right" align="center">
             <template #default="{ row }: { row: RoleVO }">
-              <el-tooltip content="编辑角色">
-                <el-button :icon="Edit" text type="primary" @click.stop="openEditDialog(row)" />
-              </el-tooltip>
-              <el-tooltip content="配置权限">
-                <el-button :icon="Key" text type="primary" @click.stop="selectRole(row)" />
-              </el-tooltip>
-              <el-tooltip :content="row.builtIn ? '内置角色不可删除' : '删除角色'">
-                <el-button :icon="Delete" text type="danger" :disabled="row.builtIn" @click.stop="confirmDeleteRole(row)" />
-              </el-tooltip>
+              <!-- 操作列使用固定尺寸圆形按钮组，统一普通态、禁用态和 Tooltip 包装后的对齐基线。 -->
+              <div class="role-actions">
+                <el-tooltip content="编辑角色">
+                  <el-button :icon="Edit" circle plain type="primary" @click.stop="openEditDialog(row)" />
+                </el-tooltip>
+                <el-tooltip content="配置权限">
+                  <el-button :icon="Key" circle plain type="primary" @click.stop="selectRole(row)" />
+                </el-tooltip>
+                <el-tooltip :content="row.builtIn ? '内置角色不可删除' : '删除角色'">
+                  <el-button :icon="Delete" circle plain type="danger" :disabled="row.builtIn" @click.stop="confirmDeleteRole(row)" />
+                </el-tooltip>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -578,6 +581,24 @@ onBeforeUnmount(() => {
 .role-cell span {
   color: var(--ops-text-secondary);
   font-size: 12px;
+}
+
+/* 与用户、团队管理页共用相同视觉规格，避免按钮默认 margin 造成操作列错位。 */
+.role-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  width: 100%;
+}
+
+.role-actions :deep(.el-button) {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 30px;
 }
 
 .role-page__permissions {
