@@ -7,7 +7,7 @@ const items = [
   { title: '上传限制', description: '文件大小、数量和扩展名策略', path: '/system/config/upload-policy', ready: true },
   { title: '通知模板', description: '站内通知模板维护', path: '/system/config/notification-templates', ready: true },
   { title: '邮件通知', description: '邮件开关与默认收件邮箱配置', path: '/system/config/email-notification-settings', ready: true },
-  { title: 'AI 开关', description: '与 RAG 同轮开发，当前仅保留关闭态入口', path: '/system/config/ai-settings', ready: false },
+  { title: 'AI 开关', description: '管理 AI 总开关、知识问答与最终生效状态', path: '/system/config/ai-settings', ready: true },
 ]
 </script>
 

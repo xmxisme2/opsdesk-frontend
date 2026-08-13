@@ -74,6 +74,8 @@ export function getAiSettings() {
   return post<AiSettings>('/system/ai-settings/detail')
 }
 
-export function updateAiSettings(data: Partial<AiSettings> & { apiKey?: string }) {
-  return post<AiSettings>('/system/ai-settings/update', data)
+export function updateAiSettings(data: Pick<AiSettings, 'enabled' | 'ragEnabled'>) {
+  return post<AiSettings>('/system/ai-settings/update', data, {
+    dedupe: 'ignore-current', dedupeKey: 'system:ai-settings:update',
+  })
 }

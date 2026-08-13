@@ -6,7 +6,12 @@ export interface AiSettings {
   provider?: string
   model?: string
   ragEnabled: boolean
+  effectiveEnabled: boolean
+  effectiveRagEnabled: boolean
+  environmentEnabled: boolean
+  environmentRagEnabled: boolean
   disclaimer?: string
+  updateTime?: string
 }
 
 export interface AiCallLogVO {

@@ -161,7 +161,7 @@ export const routes: RouteRecordRaw[] = [
             path: 'config/ai-settings',
             name: 'system-config-ai-settings',
             component: () => import('@/views/system/config/AiSettingsPanel.vue'),
-            meta: { title: 'AI 开关', requiresAuth: true, roles: ['ADMIN'], feature: 'ai', activeMenu: '/system/config' },
+            meta: { title: 'AI 开关', requiresAuth: true, roles: ['ADMIN'], activeMenu: '/system/config' },
           },
           {
             path: 'ai-settings',
