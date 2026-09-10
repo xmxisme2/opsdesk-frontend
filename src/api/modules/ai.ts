@@ -5,6 +5,7 @@ import type {
   AiCallLogVO,
   AiConversationDetailVO,
   AiConversationVO,
+  AiTicketPrefillVO,
   AiQualityOverviewVO,
   AiQualityResult,
   AiQualitySampleVO,
@@ -60,6 +61,19 @@ export function deleteAiConversation(id: ApiId) {
 
 export function submitAiFeedback(id: ApiId, data: { rating: 'UP' | 'DOWN'; reasonCode?: string; comment?: string }) {
   return post<void>(`/ai/messages/${id}/feedback`, data)
+}
+
+/** 将一条用户提问整理为短期工单预填数据；不在此接口创建或提交工单。 */
+export function analyzeAiTicketPrefill(data: { question: string; clientRequestId: string }) {
+  return post<AiTicketPrefillVO>('/ai/tickets/analyze', data, {
+    dedupe: 'ignore-current',
+    dedupeKey: `ai:ticket-prefill:${data.clientRequestId}`,
+  })
+}
+
+/** 工单创建页凭短期令牌读取当前用户自己的预填数据。 */
+export function getAiTicketPrefill(prefillId: string) {
+  return post<AiTicketPrefillVO>(`/ai/tickets/prefills/${prefillId}/detail`, {})
 }
 
 export interface RagStreamHandlers {

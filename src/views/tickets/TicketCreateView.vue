@@ -12,18 +12,20 @@ import {
   updateTicket,
   type TicketMutationRequest,
 } from '@/api/modules/tickets'
+import { getAiTicketPrefill } from '@/api/modules/ai'
 import { deleteFile, uploadFile } from '@/api/modules/files'
 import PageHeader from '@/components/common/PageHeader.vue'
 import { useDictionariesStore } from '@/stores/modules/dictionaries'
 import { selectablePriorityOptions } from '@/utils/priority-options'
 import type { ApiId } from '@/types/api'
 import type { TicketCategoryVO, TicketPriority, TicketVO } from '@/types/ticket'
+import type { AiTicketPrefillVO } from '@/types/ai'
 
 type TicketFormModel = {
   title: string
   description: string
   categoryId: ApiId | ''
-  priority: TicketPriority
+  priority: TicketPriority | ''
   dueTime: string
   tags: string[]
 }
@@ -44,10 +46,12 @@ const loading = ref(false)
 const saving = ref(false)
 const uploading = ref(false)
 const existingTicket = ref<TicketVO | null>(null)
+const aiPrefill = ref<AiTicketPrefillVO | null>(null)
 const ticketAttachmentIds = ref<ApiId[]>([])
 const ticketAttachmentTempToken = ref('')
 
 const draftId = computed(() => (typeof route.query.id === 'string' ? route.query.id : undefined))
+const prefillId = computed(() => (typeof route.query.prefillId === 'string' ? route.query.prefillId : undefined))
 const isEditing = computed(() => Boolean(draftId.value))
 // 附件上传尚未结束或失败时禁止提交，确保创建/编辑请求只携带可绑定的临时附件。
 const hasUploadingAttachments = computed(() => fileList.value.some((file) => file.status === 'uploading' || file.status === 'ready'))
@@ -63,7 +67,10 @@ const form = reactive<TicketFormModel>({
   tags: [],
 })
 // 编辑草稿时允许回显当前已停用优先级，但停用项不可重新选择。
-const priorityOptions = computed(() => selectablePriorityOptions(ticketPriorityOptions.value, isEditing.value ? form.priority : undefined))
+const priorityOptions = computed(() => selectablePriorityOptions(
+  ticketPriorityOptions.value,
+  isEditing.value && form.priority ? form.priority : undefined,
+))
 
 const rules: FormRules<TicketFormModel> = {
   title: [
@@ -108,6 +115,31 @@ async function loadPage() {
       })
       await nextTick()
       formRef.value?.clearValidate()
+    } else if (prefillId.value) {
+      // AI 跳转场景不沿用普通新建页的默认优先级，未获得可信建议时必须由用户主动选择。
+      form.priority = ''
+      try {
+        const prefill = await getAiTicketPrefill(prefillId.value)
+        const validCategoryIds = new Set(flattenCategoryIds(categories.value))
+        const validCategory = Boolean(prefill.categoryId && validCategoryIds.has(prefill.categoryId))
+        const validPriority = Boolean(prefill.priority && priorityOptions.value.some((item) => item.code === prefill.priority && item.enabled))
+        const missingFields = new Set(prefill.missingFields)
+        if (!validCategory) missingFields.add('categoryId')
+        if (!validPriority) missingFields.add('priority')
+        aiPrefill.value = { ...prefill, missingFields: Array.from(missingFields) }
+        Object.assign(form, {
+          title: prefill.title,
+          description: prefill.description,
+          categoryId: validCategory ? prefill.categoryId : '',
+          // AI 未达到自动携带阈值时保留空值，让用户在页面明确选择。
+          priority: validPriority ? prefill.priority : '',
+          tags: prefill.tags ?? [],
+        })
+        await nextTick()
+        formRef.value?.clearValidate()
+      } catch (error) {
+        ElMessage.warning(error instanceof Error ? error.message : 'AI 预填信息读取失败，请手动填写')
+      }
     }
   } finally {
     loading.value = false
@@ -139,8 +171,8 @@ function buildPayload(): TicketMutationRequest {
   return {
     title: form.title.trim(),
     description: form.description.trim(),
-    categoryId: form.categoryId,
-    priority: form.priority,
+    categoryId: form.categoryId as ApiId,
+    priority: form.priority as TicketPriority,
     dueTime: form.dueTime || undefined,
     tags: form.tags.map((tag) => tag.trim()).filter(Boolean),
     attachmentIds: ticketAttachmentIds.value,
@@ -152,6 +184,11 @@ function ensureTicketAttachmentTempToken() {
     ticketAttachmentTempToken.value = `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
   }
   return ticketAttachmentTempToken.value
+}
+
+/** 将分类树展开为有效 ID，用于防御分析后分类被停用或删除的情况。 */
+function flattenCategoryIds(nodes: TicketCategoryVO[]): ApiId[] {
+  return nodes.flatMap((node) => [node.id, ...flattenCategoryIds(node.children ?? [])])
 }
 
 async function uploadTicketAttachment(options: UploadRequestOptions) {
@@ -227,6 +264,15 @@ onMounted(loadPage)
 
     <div class="ticket-create-page__layout">
       <section class="page-panel ticket-create-page__form-panel">
+        <el-alert
+          v-if="aiPrefill"
+          class="ticket-create-page__ai-alert"
+          :title="aiPrefill.source === 'AI' ? '已根据 AI 会话预填工单信息' : '已带入原始问题，请手动补充工单信息'"
+          :description="aiPrefill.missingFields.length ? '分类或优先级未达到自动填写条件，请补充后再提交。' : '请核对预填内容，确认无误后再提交。'"
+          type="info"
+          :closable="false"
+          show-icon
+        />
         <h2>问题信息</h2>
         <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
           <el-form-item label="标题" prop="title">
@@ -245,7 +291,7 @@ onMounted(loadPage)
               />
             </el-form-item>
             <el-form-item label="优先级" prop="priority">
-              <el-select v-model="form.priority">
+              <el-select v-model="form.priority" placeholder="请选择优先级">
                 <el-option v-for="item in priorityOptions" :key="item.code" :label="item.name" :value="item.code" :disabled="!item.enabled" />
               </el-select>
             </el-form-item>
@@ -331,7 +377,13 @@ onMounted(loadPage)
           <strong>附件安全</strong>
           <span>请勿上传密码、密钥或包含敏感个人信息的文件。</span>
         </div>
-        <el-alert title="AI 分类与优先级建议暂未开放" type="info" :closable="false" show-icon />
+        <el-alert
+          v-if="aiPrefill"
+          title="AI 仅负责整理和预填，不会自动创建工单"
+          type="info"
+          :closable="false"
+          show-icon
+        />
       </aside>
     </div>
   </section>
@@ -352,6 +404,10 @@ onMounted(loadPage)
 
 .ticket-create-page__form-panel {
   padding: 26px;
+}
+
+.ticket-create-page__ai-alert {
+  margin-bottom: 20px;
 }
 
 .ticket-create-page__form-grid {

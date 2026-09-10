@@ -75,6 +75,21 @@ export interface AiConversationDetailVO {
   messages: AiMessageVO[]
 }
 
+/** AI 问答生成的一次性工单预填数据，缺失字段必须由用户在工单页补充。 */
+export interface AiTicketPrefillVO {
+  prefillId: string
+  expiresAt: string
+  title: string
+  description: string
+  categoryId?: ApiId
+  categoryName?: string
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+  tags: string[]
+  missingFields: Array<'categoryId' | 'priority'>
+  reason?: string
+  source: 'AI' | 'FALLBACK'
+}
+
 /** AI 质量看板顶部聚合指标，比率字段均为百分数。 */
 export interface AiQualitySummaryVO {
   totalCalls: number

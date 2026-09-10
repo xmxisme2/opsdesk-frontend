@@ -2,10 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ChatDotRound, Connection, Delete, Document, FolderAdd, MoreFilled, Plus, Position, RefreshRight, VideoPause } from '@element-plus/icons-vue'
+import { ChatDotRound, Connection, Delete, Document, DocumentAdd, FolderAdd, MoreFilled, Plus, Position, RefreshRight, VideoPause } from '@element-plus/icons-vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import {
   archiveAiConversation,
+  analyzeAiTicketPrefill,
   deleteAiConversation,
   getAiConversationDetail,
   searchAiConversations,
@@ -33,6 +34,7 @@ const activeTitle = ref('新会话')
 const generating = ref(false)
 const historyLoading = ref(false)
 const detailLoading = ref(false)
+const ticketPrefillLoadingId = ref<string>()
 const messageList = ref<HTMLElement>()
 let controller: AbortController | null = null
 
@@ -202,6 +204,25 @@ async function feedback(message: ChatMessage, rating: 'UP' | 'DOWN') {
   }
 }
 
+/** 使用当前回答之前最近一条用户提问生成工单预填，真正提交仍由工单页面完成。 */
+async function createTicketFromQuestion(message: ChatMessage, messageIndex: number) {
+  if (ticketPrefillLoadingId.value) return
+  const userMessage = messages.value.slice(0, messageIndex).reverse().find((item) => item.role === 'user')
+  if (!userMessage?.content.trim()) {
+    ElMessage.warning('没有找到可用于创建工单的用户问题')
+    return
+  }
+  ticketPrefillLoadingId.value = message.id
+  try {
+    const prefill = await analyzeAiTicketPrefill({ question: userMessage.content.trim(), clientRequestId: createRequestId() })
+    await router.push({ path: '/tickets/create', query: { prefillId: prefill.prefillId } })
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '工单信息整理失败，请稍后重试')
+  } finally {
+    ticketPrefillLoadingId.value = undefined
+  }
+}
+
 onMounted(loadConversations)
 onBeforeUnmount(() => controller?.abort())
 </script>
@@ -271,10 +292,21 @@ onBeforeUnmount(() => controller?.abort())
                 <div v-if="message.status === 'insufficient'" class="status-note status-note--warning">当前知识库证据不足，可换个问法或前往知识库搜索。</div>
                 <div v-if="message.status === 'failed'" class="status-note status-note--error">{{ message.errorMessage || 'AI 服务暂时不可用，请稍后重试' }}<el-button link type="danger" :icon="RefreshRight" @click="retry(index)">重试</el-button></div>
                 <div v-if="message.status === 'stopped'" class="status-note">生成已停止，当前内容可能不完整。</div>
-                <div v-if="['done', 'insufficient'].includes(message.status)" class="feedback-row">
-                  <span>有帮助吗？</span>
-                  <button type="button" :class="{ selected: message.feedback === 'UP' }" title="有帮助" @click="feedback(message, 'UP')">👍</button>
-                  <button type="button" :class="{ selected: message.feedback === 'DOWN' }" title="没有帮助" @click="feedback(message, 'DOWN')">👎</button>
+                <div v-if="['done', 'insufficient'].includes(message.status)" class="answer-actions">
+                  <div class="feedback-row">
+                    <span>有帮助吗？</span>
+                    <button type="button" :class="{ selected: message.feedback === 'UP' }" title="有帮助" @click="feedback(message, 'UP')">👍</button>
+                    <button type="button" :class="{ selected: message.feedback === 'DOWN' }" title="没有帮助" @click="feedback(message, 'DOWN')">👎</button>
+                  </div>
+                  <el-button
+                    :type="message.status === 'insufficient' ? 'primary' : 'default'"
+                    :plain="message.status !== 'insufficient'"
+                    size="small"
+                    :icon="DocumentAdd"
+                    :loading="ticketPrefillLoadingId === message.id"
+                    :disabled="Boolean(ticketPrefillLoadingId)"
+                    @click="createTicketFromQuestion(message, index)"
+                  >{{ message.status === 'insufficient' ? '创建工单继续处理' : '问题未解决？创建工单' }}</el-button>
                 </div>
               </div>
             </div>
@@ -327,6 +359,8 @@ onBeforeUnmount(() => controller?.abort())
 .reference-list { margin-top: 10px; padding: 12px; border: 1px solid #dbe3ed; border-radius: 8px; background: #fff; }.reference-list__title { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; color: #576378; font-size: 12px; font-weight: 650; }.reference-card { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 0; border-top: 1px solid #edf1f5; background: transparent; text-align: left; cursor: pointer; }.reference-card span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }.reference-card strong { color: #0f131a; font-size: 13px; }.reference-card small { color: #7b8798; }.reference-card em { flex: none; color: #1252ad; font-size: 12px; font-style: normal; }
 .status-note { margin-top: 8px; padding: 9px 11px; border-radius: 6px; background: #f6f9fc; color: #576378; font-size: 12px; }.status-note--warning { background: #fff7e0; color: #a76600; }.status-note--error { background: #fff0f0; color: #c72e2e; }
 .feedback-row { display: flex; align-items: center; gap: 6px; margin-top: 9px; color: #576378; font-size: 12px; }.feedback-row button { width: 28px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; cursor: pointer; }.feedback-row button:hover, .feedback-row button.selected { border-color: #bfd4f0; background: #edf5ff; }
+.answer-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
+.answer-actions .feedback-row { margin-top: 0; }
 .composer { padding: 14px 18px 16px; border-top: 1px solid var(--ops-border-color); background: #fff; }.composer__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }.composer__footer span { color: var(--ops-text-secondary); font-size: 11px; line-height: 1.7; }
 @keyframes pulse { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
 @media (max-width: 900px) { .assistant-layout { grid-template-columns: 1fr; }.session-panel { display: none; }.message-list { max-height: none; }.assistant-answer { max-width: 90%; } }
